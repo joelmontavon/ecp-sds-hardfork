@@ -17,7 +17,9 @@
         <version>6.4.0</version>
     </parent>
 
-    <artifactId>hapi-fhir-jpaserver-starter</artifactId>
+    <groupId>edu.ohsu.cmp</groupId>
+    <artifactId>ecp-sds</artifactId>
+    <version>1.0.0</version>
     <packaging>war</packaging>
 
     <properties>
@@ -30,7 +32,7 @@
         <maven>3.8.3</maven>
     </prerequisites>
 
-    <name>HAPI FHIR JPA Server - Starter Project</name>
+    <name>eCare Plan - Supplemental Data Store</name>
 
     <repositories>
         <repository>
@@ -79,13 +81,13 @@
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-base</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
         <!-- This dependency includes the EmailSenderImpl we will be using instead of standard javamail.-->
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-jpaserver-subscription</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.zaxxer</groupId>
@@ -98,7 +100,7 @@
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-jpaserver-base</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.springframework</groupId>
@@ -114,39 +116,39 @@
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-storage-cr</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
         <!-- This dependency includes the JPA MDM Server -->
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-jpaserver-mdm</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
         <!-- This dependency includes the OpenAPI Server -->
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-server-openapi</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
         <!-- This dependency is used for the "FHIR Tester" web app overlay -->
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-testpage-overlay</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
             <type>war</type>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-testpage-overlay</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
             <classifier>classes</classifier>
         </dependency>
         <!-- This dependency is used to include the IPS Base Implementation -->
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-jpaserver-ips</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
         </dependency>
 
         <!-- HAPI-FHIR uses Logback for logging support. The logback library is included automatically by Maven as a part of the hapi-fhir-base dependency, but you also need to include a logging library. Logback
@@ -297,7 +299,7 @@
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
             <artifactId>hapi-fhir-test-utilities</artifactId>
-            <version>${project.version}</version>
+            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -378,6 +380,18 @@
             <version>${logback-classic.version}</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-oauth2-resource-server -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <version>${spring_boot_version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>oauth2-oidc-sdk</artifactId>
+            <version>9.25</version>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
 
     <build>
