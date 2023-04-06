@@ -11,6 +11,8 @@ import ca.uhn.fhir.jpa.subscription.match.config.WebsocketDispatcherConfig;
 import ca.uhn.fhir.jpa.subscription.submit.config.SubscriptionSubmitterConfig;
 import ca.uhn.fhir.rest.server.RestfulServer;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePartitioningConfig;
+import edu.ohsu.cmp.ecp.security.ApplicationOpaqueTokenIntrospector;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.boot.SpringApplication;
@@ -29,7 +31,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 
 @ServletComponentScan(basePackageClasses = {RestfulServer.class})
-@ComponentScan(basePackageClasses = {Application.class, SupplementalDataStorePartitioningConfig.class})
+@ComponentScan(basePackageClasses = {Application.class, SupplementalDataStorePartitioningConfig.class, ApplicationOpaqueTokenIntrospector.class})
 @SpringBootApplication(exclude = {ElasticsearchRestClientAutoConfiguration.class, ThymeleafAutoConfiguration.class})
 @Import({
 	SubscriptionSubmitterConfig.class,
