@@ -1,4 +1,4 @@
-package edu.ohsu.cmp.ecp.sds.r4;
+package edu.ohsu.cmp.ecp.sds.r5;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -7,41 +7,41 @@ import javax.inject.Inject;
 
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
-import org.hl7.fhir.r4.model.Linkage;
-import org.hl7.fhir.r4.model.Linkage.LinkageType;
-import org.hl7.fhir.r4.model.Patient;
-import org.hl7.fhir.r4.model.Practitioner;
-import org.hl7.fhir.r4.model.Reference;
+import org.hl7.fhir.r5.model.Linkage;
+import org.hl7.fhir.r5.model.Linkage.LinkageType;
+import org.hl7.fhir.r5.model.Patient;
+import org.hl7.fhir.r5.model.Practitioner;
+import org.hl7.fhir.r5.model.Reference;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 import ca.uhn.fhir.jpa.api.dao.IFhirResourceDao;
 import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
-import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
+import ca.uhn.fhir.jpa.starter.annotations.OnR5Condition;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
 import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
 
 @Component
-@Conditional(OnR4Condition.class)
-public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkageBase {
+@Conditional(OnR5Condition.class)
+public class SupplementalDataStoreLinkageR5 extends SupplementalDataStoreLinkageBase {
 
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;
 
 	@Inject
-	IFhirResourceDao<org.hl7.fhir.r4.model.Linkage> daoLinkageR4;
+	IFhirResourceDao<org.hl7.fhir.r5.model.Linkage> daoLinkageR5;
 
 	@Inject
-	IFhirResourceDao<org.hl7.fhir.r4.model.Patient> daoPatientR4;
+	IFhirResourceDao<org.hl7.fhir.r5.model.Patient> daoPatientR5;
 
 	@Inject
-	IFhirResourceDao<org.hl7.fhir.r4.model.Practitioner> daoPractitionerR4;
+	IFhirResourceDao<org.hl7.fhir.r5.model.Practitioner> daoPractitionerR5;
 
 	@Override
 	protected List<IBaseResource> searchLinkageResources( SearchParameterMap linkageSearchParamMap, RequestDetails theRequestDetails ) {
-		return daoLinkageR4.search(linkageSearchParamMap, theRequestDetails).getAllResources();	
+		return daoLinkageR5.search(linkageSearchParamMap, theRequestDetails).getAllResources();	
 	}
 
 	@Override
@@ -79,7 +79,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 		Linkage linkage = new Linkage();
 		linkage.addItem().setType(LinkageType.SOURCE).setResource(new Reference(sourcePatientId));
 		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(new Reference(alternatePatientId));
-		daoLinkageR4.create(linkage, theRequestDetails);
+		daoLinkageR5.create(linkage, theRequestDetails);
 	}
 
 	@Override
@@ -98,14 +98,14 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	@Override
 	public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) {
 		Patient patient = new Patient();
-		DaoMethodOutcome createOutcome = daoPatientR4.create(patient, theRequestDetails);
+		DaoMethodOutcome createOutcome = daoPatientR5.create(patient, theRequestDetails);
 		return createOutcome.getResource();
 	}
 
 	@Override
 	public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) {
 		Practitioner practitioner = new Practitioner();
-		DaoMethodOutcome createOutcome = daoPractitionerR4.create(practitioner, theRequestDetails );
+		DaoMethodOutcome createOutcome = daoPractitionerR5.create(practitioner, theRequestDetails );
 		return createOutcome.getResource();
 	}
 }
