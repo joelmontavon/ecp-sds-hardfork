@@ -89,7 +89,7 @@ public class SupplementalDataStorePartitionInterceptor {
 		return RequestPartitionId.fromPartitionName(partitionName);
 	}
 
-	private String partitionNameFromRequest(RequestDetails theRequestDetails) {
+	protected String partitionNameFromRequest(RequestDetails theRequestDetails) {
 		final String partitionNameHeaderValue = theRequestDetails.getHeader(HEADER_PARTITION_NAME);
 		if (null != partitionNameHeaderValue)
 			return partitionNameHeaderValue;
