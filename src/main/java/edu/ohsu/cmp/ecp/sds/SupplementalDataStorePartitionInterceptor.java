@@ -102,14 +102,19 @@ public class SupplementalDataStorePartitionInterceptor {
 			return;
 
 		IIdType id = resource.getIdElement();
-		if (null != id) {
-			if (!id.hasBaseUrl())
-				throw new InvalidRequestException("id element present without base url; cannot match SDS partition");
-			if (!id.getBaseUrl().equals(partitionName))
-				throw new InvalidRequestException(String.format("cannot store resource identified as belonging in SDS partition \"%1$s\" into SDS partition \"%2$s\"", id.getBaseUrl(), partitionName));
-		} else {
-			if (!sdsProperties.getPartition().getLocalName().equals(partitionName))
+		if (id == null || id.getIdPart() == null) {
+			if (!sdsProperties.getPartition().getLocalName().equals(partitionName)) {
 				throw new InvalidRequestException(String.format("cannot store resource identified as belonging in local SDS partition into SDS partition \"%1$s\"", partitionName));
+			}
+
+		} else {
+			if (!id.hasBaseUrl()) {
+				throw new InvalidRequestException("id element present without base url; cannot match SDS partition");
+			}
+
+			if (!id.getBaseUrl().equals(partitionName)) {
+				throw new InvalidRequestException(String.format("cannot store resource identified as belonging in SDS partition \"%1$s\" into SDS partition \"%2$s\"", id.getBaseUrl(), partitionName));
+			}
 		}
 	}
 
