@@ -9,6 +9,7 @@ import ca.uhn.fhir.jpa.entity.PartitionEntity;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.stereotype.Component;
@@ -91,7 +92,7 @@ public class SupplementalDataStorePartitionInterceptor {
 
 	protected String partitionNameFromRequest(RequestDetails theRequestDetails) {
 		final String partitionNameHeaderValue = theRequestDetails.getHeader(HEADER_PARTITION_NAME);
-		if (null != partitionNameHeaderValue)
+		if (StringUtils.isNotBlank(partitionNameHeaderValue))
 			return partitionNameHeaderValue;
 		else
 			return sdsProperties.getPartition().getLocalName();
@@ -102,7 +103,7 @@ public class SupplementalDataStorePartitionInterceptor {
 			return;
 
 		IIdType id = resource.getIdElement();
-		if (id == null || id.getIdPart() == null) {
+		if (id == null || StringUtils.isBlank(id.getIdPart())) {
 			if (!sdsProperties.getPartition().getLocalName().equals(partitionName)) {
 				throw new InvalidRequestException(String.format("cannot store resource identified as belonging in local SDS partition into SDS partition \"%1$s\"", partitionName));
 			}
