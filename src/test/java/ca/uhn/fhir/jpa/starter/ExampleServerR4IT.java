@@ -17,6 +17,7 @@ import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.*;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,7 @@ import static org.opencds.cqf.fhir.utility.r4.Parameters.stringPart;
 		// beans are ambiguous as they are constructed multiple places. This is evident
 		// when running in a spring boot environment
 		"spring.main.allow-bean-definition-overriding=true" })
+@Disabled("SDS partitioning scheme may be incompatible with MDM, but MDM will not be enabled with the SDS")
 class ExampleServerR4IT implements IServerSupport{
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(ExampleServerR4IT.class);
 	private IGenericClient ourClient;
