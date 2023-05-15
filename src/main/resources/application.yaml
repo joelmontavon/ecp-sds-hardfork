@@ -17,12 +17,8 @@ spring:
       resourceserver:
         opaque-token:
           introspection-uri: https://my-foo-ehr.org/oauth2/introspect
-          introspection-client-id: fooClient
-          introspection-client-secret: fooClientSecret
         opaque:
           introspection-uri: https://my-bar-ehr.org/oauth2/introspect
-          introspection-client-id: barClient
-          introspection-client-secret: barClientSecret
   flyway:
     enabled: false
     check-location: false
