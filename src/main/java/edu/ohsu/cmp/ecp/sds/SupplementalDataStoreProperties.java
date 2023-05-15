@@ -7,14 +7,14 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "sds")
 public class SupplementalDataStoreProperties {
 
-	private Boolean requireBaseUrl;
+	private boolean requireBaseUrl = true ;
 	private Partition partition = new Partition();
 
-	public Boolean getRequireBaseUrl() {
+	public boolean getRequireBaseUrl() {
 		return requireBaseUrl;
 	}
 
-	public void setRequireBaseUrl(Boolean requireBaseUrl) {
+	public void setRequireBaseUrl(boolean requireBaseUrl) {
 		this.requireBaseUrl = requireBaseUrl;
 	}
 
