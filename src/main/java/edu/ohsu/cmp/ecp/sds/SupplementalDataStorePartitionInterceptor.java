@@ -6,6 +6,7 @@ import ca.uhn.fhir.interceptor.api.Pointcut;
 import ca.uhn.fhir.interceptor.model.RequestPartitionId;
 import ca.uhn.fhir.jpa.dao.data.IPartitionDao;
 import ca.uhn.fhir.jpa.entity.PartitionEntity;
+import ca.uhn.fhir.jpa.partition.IRequestPartitionHelperSvc;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 
@@ -17,6 +18,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.Iterator;
+import java.util.List;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
@@ -31,6 +35,9 @@ public class SupplementalDataStorePartitionInterceptor {
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;
 
+	@Inject
+	IRequestPartitionHelperSvc requestPartitionHelperSvc;
+	
 	@Inject
 	IPartitionDao daoPartition;
 
@@ -64,24 +71,44 @@ public class SupplementalDataStorePartitionInterceptor {
 
 	}
 
+	public void establishNonLocalPartition( String partitionName ) {
+		if (!daoPartition.findForName(partitionName).isPresent()) {
+			daoPartition.save(newNonLocalPartitionEntity(partitionName));
+		}
+	}
+	
 	@Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_CREATE)
 	public RequestPartitionId partitionIdentifyCreate(RequestDetails theRequestDetails) {
-		final String partitionName = partitionNameFromRequest(theRequestDetails);
-		validateResourceBelongsInPartition(theRequestDetails.getResource(), partitionName);
+		if ( !requestPartitionHelperSvc.isResourcePartitionable(theRequestDetails.getResourceName()) )
+			return RequestPartitionId.defaultPartition() ;
 
-		if (!sdsProperties.getPartition().getLocalName().equals(partitionName)) {
-			if (!daoPartition.findForName(partitionName).isPresent()) {
-				daoPartition.save(newNonLocalPartitionEntity(partitionName));
+		RequestPartitionId partitionId = partitionIdFromRequest( theRequestDetails ) ;
+
+		validateAndEstablishNamedPartition( partitionId, theRequestDetails ) ;
+
+		return partitionId;
+	}
+
+	protected void validateAndEstablishNamedPartition( RequestPartitionId partitionId, RequestDetails theRequestDetails ) {
+
+		if ( partitionId.hasPartitionNames() ) {
+			for ( String partitionName : partitionId.getPartitionNames() ) {
+
+				validateResourceBelongsInPartition(theRequestDetails.getResource(), partitionName);
+
+				if (!sdsProperties.getPartition().getLocalName().equals(partitionName)) {
+					establishNonLocalPartition( partitionName ) ;
+				}
 			}
 		}
-
-		return RequestPartitionId.fromPartitionName(partitionName);
 	}
 
 	@Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_READ)
 	public RequestPartitionId partitionIdentifyRead(RequestDetails theRequestDetails) {
-		final String partitionName = partitionNameFromRequest(theRequestDetails);
-		return RequestPartitionId.fromPartitionName(partitionName);
+		if ( !requestPartitionHelperSvc.isResourcePartitionable(theRequestDetails.getResourceName()) )
+			return RequestPartitionId.defaultPartition() ;
+
+		return partitionIdFromRequest( theRequestDetails ) ;
 	}
 
 

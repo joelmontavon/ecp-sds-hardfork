@@ -1,9 +1,9 @@
 package ca.uhn.fhir.jpa.starter;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
@@ -22,13 +22,14 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenResolv
 public class AppTestMockOAuth2SecurityConfig {
 
 	private static final String MOCK_TOKEN = "MOCK-TOKEN" ;
-	private static final String MOCK_USER_NAME= "MOCK-USERNAME" ;
+	private static final String MOCK_USER_NAME = "MOCK-USERNAME" ;
+	private static final String MOCK_SUBJECT = "MOCK-SUBJECT" ;
 
 	private static final BearerTokenResolver MOCK_TOKEN_RESOLVER =
 			new MockBearerTokenResolver(MOCK_TOKEN) ;
 
 	private static final OpaqueTokenIntrospector MOCK_INTROSPECTOR =
-		new MockOpaqueTokenIntrospector(MOCK_TOKEN, MOCK_USER_NAME) ;
+		new MockOpaqueTokenIntrospector(MOCK_TOKEN, MOCK_USER_NAME, MOCK_SUBJECT) ;
 
 	
 	@Bean @Primary
@@ -45,16 +46,18 @@ public class AppTestMockOAuth2SecurityConfig {
 		
 		private final String matchToken;
 		private final String username;
+		private final String subject;
 
-		public MockOpaqueTokenIntrospector(String matchToken, String username) {
+		public MockOpaqueTokenIntrospector(String matchToken, String username, String subject) {
 			this.matchToken = matchToken;
 			this.username = username;
+			this.subject = subject;
 		}
 
 		@Override
 		public OAuth2AuthenticatedPrincipal introspect(String token) {
 			if ( matchToken.equals( token ) ) {
-				return new MockOAuth2AuthenticatedPrincipal(username) ;
+				return new MockOAuth2AuthenticatedPrincipal(username, subject) ;
 			} else {
 				throw new OAuth2IntrospectionException("expected mock token \"" + matchToken + "\" but found \"" + token + "\"" );
 			}
@@ -77,9 +80,11 @@ public class AppTestMockOAuth2SecurityConfig {
 	
 	private static class MockOAuth2AuthenticatedPrincipal implements OAuth2AuthenticatedPrincipal {
 		private final String name;
+		private final String subject;
 		
-		public MockOAuth2AuthenticatedPrincipal(String name) {
+		public MockOAuth2AuthenticatedPrincipal(String name, String subject) {
 			this.name = name;
+			this.subject = subject;
 		}
 
 		@Override
@@ -94,7 +99,9 @@ public class AppTestMockOAuth2SecurityConfig {
 		
 		@Override
 		public Map<String, Object> getAttributes() {
-			return emptyMap();
+			Map<String,Object> attr = new HashMap<>() ;
+			attr.put( "sub", subject ) ;
+			return attr;
 		}
 	}		
 }
