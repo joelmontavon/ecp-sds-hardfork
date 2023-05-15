@@ -60,13 +60,12 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 	}
 	
 	@Test
-	@Disabled("not tested yet")
 	void canStoreAndRetrievePatientResourceWithNonExistantReferenceInForeignPartition() {
 		IGenericClient client = client() ;
 		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
 		
 		Patient pat = initPatient( "0123456789" ) ;
-		pat.addGeneralPractitioner( new Reference( new IdType("xyz") ) );
+		pat.addGeneralPractitioner( new Reference( new IdType("Practitioner", "xyz") ) );
 		IIdType patId = client.update().resource(pat).execute().getId();
 		
 		Patient readPatient = client.read().resource(Patient.class).withId(patId).execute();
