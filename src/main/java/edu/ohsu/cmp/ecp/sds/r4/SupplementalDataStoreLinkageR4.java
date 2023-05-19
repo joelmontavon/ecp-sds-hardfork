@@ -53,6 +53,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				for (Linkage.LinkageItemComponent linkageItem : linkage.getItem()) {
 					if (linkageItem.getType() == LinkageType.ALTERNATE && linkageItem.hasResource() && linkageItem.getResource().hasReference() && nonLocalPatientId.equals(linkageItem.getResource().getReferenceElement())) {
 						linkageResources.add(res);
+						break;	// breaking to prevent re-adding res if there are multiple alternates
 					}
 				}
 			}
