@@ -1,22 +1,19 @@
 package edu.ohsu.cmp.ecp.sds;
 
-import static java.util.Arrays.asList;
-
 import java.util.Calendar;
 import java.util.Date;
 
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.Bundle;
-import org.hl7.fhir.r4.model.Bundle.HTTPVerb;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.util.BundleBuilder;
 
 public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 
@@ -28,7 +25,7 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 		Date birthDate = cal.getTime() ;
 		
 		Patient pat = new Patient();
-		pat.setId( new IdType( "0123456789" ) ) ;
+		pat.setId( new IdType( "Patient", id ) ) ;
 		pat.setBirthDate( birthDate ) ;
 		
 		return pat ;
@@ -40,11 +37,11 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 	
 	private Condition initCondition( IIdType subject, String id ) {
 		Condition condition = new Condition() ;
-		condition.setId( new IdType( id ) ) ;
+		condition.setId( new IdType( "Condition", id ) ) ;
 		condition.setSubject( new Reference( subject ) ) ;
 		return condition ;
 	}
-	
+
 	@Test
 	void canStoreAndRetrievePatientResourceInForeignPartition() {
 		IGenericClient client = client() ;
@@ -58,7 +55,30 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 		Assertions.assertNotNull( readPatient );
 
 	}
-	
+
+	@Test
+	void canStoreAndRetrievePatientResourceInDisparateForeignPartitions() {
+		IGenericClient client1 = client() ;
+		client1.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+
+		IGenericClient client2 = client() ;
+		client2.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME + "-2" ) );
+
+		Patient pat1 = initPatient( "0123456789" ) ;
+		IIdType patId1 = client1.update().resource(pat1).execute().getId();
+
+		Patient pat2 = initPatient( "abcdefghij" ) ;
+		IIdType patId2 = client2.update().resource(pat2).execute().getId();
+
+		Patient readPatient1 = client1.read().resource(Patient.class).withId(patId1).execute();
+		Patient readPatient2 = client2.read().resource(Patient.class).withId(patId2).execute();
+
+		Assertions.assertNotNull( readPatient1 );
+		Assertions.assertNotNull( readPatient2 );
+		Assertions.assertNotEquals( readPatient2, readPatient1 );
+
+	}
+
 	@Test
 	void canStoreAndRetrievePatientResourceWithNonExistantReferenceInForeignPartition() {
 		IGenericClient client = client() ;
@@ -73,7 +93,7 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 		Assertions.assertNotNull( readPatient );
 		
 	}
-	
+
 	@Test
 	void canStoreAndRetrieveConditionResourceInForeignPartition() {
 		IGenericClient client = client() ;
@@ -92,22 +112,30 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 	}
 	
 	@Test
-	@Disabled("not tested yet")
 	void canStoreAndRetrieveBundleOfResourcesInForeignPartition() {
 		IGenericClient client = client() ;
 		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
 		
 		Patient pat = initPatient( "0123456789" ) ;
 		Condition condition = initCondition( pat, "0123456789-001" ) ;
-		
-		Bundle bundle = new Bundle() ;
-		bundle.setType( Bundle.BundleType.TRANSACTION ) ;
-		bundle.addEntry().setResource( pat ).getRequest().setMethod( HTTPVerb.PUT ) ;
-		bundle.addEntry().setResource( condition ).getRequest().setMethod( HTTPVerb.PUT ) ;
+
+		BundleBuilder builder = bundleBuilder() ;
+		builder.setType( "transaction" ) ;
+		builder.addTransactionUpdateEntry( pat ) ;
+		builder.addTransactionUpdateEntry( condition ) ;
+
+		Bundle bundle = (Bundle)builder.getBundle() ;
+		bundle.setId( new IdType("0123456789-TX") ) ;
 		
 		Bundle readBundle = client.transaction().withBundle( bundle ).execute();
 		
 		Assertions.assertNotNull( readBundle );
+
+		Patient readPatient= client.read().resource(Patient.class).withId( pat.getId() ).execute();
+		Assertions.assertNotNull( readPatient );
 		
+		Condition readCondition= client.read().resource(Condition.class).withId( condition.getId() ).execute();
+		Assertions.assertNotNull( readCondition );
+
 	}
 }
