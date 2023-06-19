@@ -3,6 +3,7 @@ package edu.ohsu.cmp.ecp.sds.base;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 import javax.inject.Inject;
 
@@ -55,17 +56,28 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 
 	protected abstract List<? extends IBaseReference> patientsFromLinkageResources(List<IBaseResource> linkageResources) ;
 	
-	protected abstract List<? extends IBaseReference> sourcePatientsFromLinkageResources(List<IBaseResource> linkageResources) ;
+	protected abstract Set<? extends IBaseReference> alternatePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) ;
 
+	protected abstract Set<? extends IBaseReference> sourcePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) ;
+	
 	@Override
-	public List<? extends IBaseReference> patientsLinkedTo(IIdType localPatientId) {
+	public Set<? extends IBaseReference> patientsLinkedTo(IIdType localPatientId) {
 
 		List<IBaseResource> linkageResources = linkageResourcesHavingSourceItem(localPatientId);
 
-		List<? extends IBaseReference> linkedPatients = patientsFromLinkageResources( linkageResources );
+		Set<? extends IBaseReference> linkedPatients = alternatePatientsFromLinkageResources( linkageResources );
 		return linkedPatients;
 	}
 
+	@Override
+	public Set<? extends IBaseReference> patientsLinkedFrom(IIdType nonLocalPatientId) {
+		
+		List<IBaseResource> linkageResources = linkageResourcesHavingAlternateItem(nonLocalPatientId);
+		
+		Set<? extends IBaseReference> linkedPatients = sourcePatientsFromLinkageResources( linkageResources );
+		return linkedPatients;
+	}
+	
 	protected abstract void createLinkage( IIdType sourcePatientId, IIdType alternatePatientId, RequestDetails theRequestDetails ) ;
 
 	@Override
@@ -84,7 +96,8 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 		} else {
 			// return the local patient that is the source 
 
-			Set<? extends IBaseReference> sourceRefs = new HashSet<IBaseReference>( sourcePatientsFromLinkageResources(linkageResources) ) ;
+			Set<? extends IBaseReference> sourceRefs = sourcePatientsFromLinkageResources(linkageResources) ;
+			
 			if (sourceRefs.size() == 1) {
 				return sourceRefs.iterator().next().getReferenceElement();
 			} else if (sourceRefs.isEmpty()) {
@@ -93,6 +106,16 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 				throw new InvalidRequestException("cannot establish local user resource; multiple local source resources found");
 			}
 		}
+	}
+
+	@Override
+	public void linkNonLocalPatientToLocalPatient(IIdType localPatientId, IIdType nonLocalPatientId) {
+		if (null == localPatientId)
+			throw new InvalidRequestException("cannot link patient resources without a local patient id for initial linkage");
+		if (null == nonLocalPatientId)
+			throw new InvalidRequestException("cannot link patient resources without a non-local patient id for initial linkage");
+
+		createLinkage( localPatientId, nonLocalPatientId, localPartitionRequest() ) ;
 	}
 
 	public IBaseResource createLocalUser(String resourceType) {

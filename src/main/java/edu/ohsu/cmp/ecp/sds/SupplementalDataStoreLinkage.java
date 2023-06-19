@@ -3,11 +3,14 @@ package edu.ohsu.cmp.ecp.sds;
 import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IIdType;
 
-import java.util.List;
+import java.util.Set;
 
 public interface SupplementalDataStoreLinkage {
 
-	List<? extends IBaseReference> patientsLinkedTo(IIdType sourcePatientId);
+	Set<? extends IBaseReference> patientsLinkedTo(IIdType sourcePatientId);
+	Set<? extends IBaseReference> patientsLinkedFrom(IIdType alternatePatientId);
 
 	IIdType establishLocalUserFor(IIdType nonLocalUserId);
+
+	void linkNonLocalPatientToLocalPatient(IIdType localPatientId, IIdType nonLocalPatientId);
 }

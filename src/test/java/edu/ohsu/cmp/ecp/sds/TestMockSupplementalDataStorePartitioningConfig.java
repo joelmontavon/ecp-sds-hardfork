@@ -43,6 +43,7 @@ public class TestMockSupplementalDataStorePartitioningConfig  {
 	 */
 	@Bean
 	@Primary
+	@ConditionalOnMissingBean(AuthAwareTestConfig.class)
 	public SupplementalDataStoreAuthorizationInterceptor mockAuthInterceptor() {
 		return MOCK_AUTH_INTERCEPTOR ;
 	}

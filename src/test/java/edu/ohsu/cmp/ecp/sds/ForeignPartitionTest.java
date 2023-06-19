@@ -1,12 +1,19 @@
 package edu.ohsu.cmp.ecp.sds;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
+import java.util.function.Predicate;
 
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.IdType;
+import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.Assertions;
@@ -44,10 +51,9 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 
 	@Test
 	void canStoreAndRetrievePatientResourceInForeignPartition() {
-		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
 
-		Patient pat = initPatient( "0123456789" ) ;
+		Patient pat = initPatient( createTestSpecificId() ) ;
 		IIdType patId = client.update().resource(pat).execute().getId();
 
 		Patient readPatient = client.read().resource(Patient.class).withId(patId).execute();
@@ -55,19 +61,29 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 		Assertions.assertNotNull( readPatient );
 
 	}
-
+	
+	@Test
+	void canEstablishLocalUserByStoringPatientResourceInForeignPartition() {
+		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
+		
+		Patient pat = initPatient( createTestSpecificId() ) ;
+		IIdType patId = client.update().resource(pat).execute().getId();
+		
+		IGenericClient clientLocal = client() ;
+		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo(patId) ;
+		
+		assertThat( linkages.size(), equalTo(1) ) ;
+	}
+	
 	@Test
 	void canStoreAndRetrievePatientResourceInDisparateForeignPartitions() {
-		IGenericClient client1 = client() ;
-		client1.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+		IGenericClient client1 = clientTargetingPartition( FOREIGN_PARTITION_NAME );
+		IGenericClient client2 = clientTargetingPartition( FOREIGN_PARTITION_NAME + "-2" );
 
-		IGenericClient client2 = client() ;
-		client2.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME + "-2" ) );
-
-		Patient pat1 = initPatient( "0123456789" ) ;
+		Patient pat1 = initPatient( createTestSpecificId() ) ;
 		IIdType patId1 = client1.update().resource(pat1).execute().getId();
 
-		Patient pat2 = initPatient( "abcdefghij" ) ;
+		Patient pat2 = initPatient( createTestSpecificId() ) ;
 		IIdType patId2 = client2.update().resource(pat2).execute().getId();
 
 		Patient readPatient1 = client1.read().resource(Patient.class).withId(patId1).execute();
@@ -81,8 +97,7 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 
 	@Test
 	void canStoreAndRetrievePatientResourceWithNonExistantReferenceInForeignPartition() {
-		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
 		
 		Patient pat = initPatient( "0123456789" ) ;
 		pat.addGeneralPractitioner( new Reference( new IdType("Practitioner", "xyz") ) );
@@ -96,8 +111,7 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 
 	@Test
 	void canStoreAndRetrieveConditionResourceInForeignPartition() {
-		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
 		
 		Patient pat = initPatient( "0123456789" ) ;
 		IIdType patId = client.update().resource(pat).execute().getId();
@@ -113,8 +127,7 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreAndRetrieveBundleOfResourcesInForeignPartition() {
-		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( FOREIGN_PARTITION_NAME ) );
+		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
 		
 		Patient pat = initPatient( "0123456789" ) ;
 		Condition condition = initCondition( pat, "0123456789-001" ) ;

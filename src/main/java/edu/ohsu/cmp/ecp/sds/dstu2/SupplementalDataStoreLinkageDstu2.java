@@ -1,10 +1,12 @@
 package edu.ohsu.cmp.ecp.sds.dstu2;
 
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 
 import org.hl7.fhir.dstu2.model.Reference;
+import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.context.annotation.Conditional;
@@ -55,10 +57,15 @@ public class SupplementalDataStoreLinkageDstu2 extends SupplementalDataStoreLink
 	}
 
 	@Override
-	protected List<Reference> sourcePatientsFromLinkageResources(List<IBaseResource> linkageResources) {
+	protected Set<? extends IBaseReference> alternatePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
 		throw linkageResourceNotDefinedInDstu2() ;
 	}
 
+	@Override
+	protected Set<? extends IBaseReference> sourcePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
+		throw linkageResourceNotDefinedInDstu2() ;
+	}
+	
 	@Override
 	public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) {
 		throw linkageResourceNotDefinedInDstu2() ;

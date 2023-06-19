@@ -2,9 +2,11 @@ package edu.ohsu.cmp.ecp.sds.r4b;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 
+import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4b.model.Linkage;
@@ -21,6 +23,7 @@ import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnR4BCondition;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
+import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
 import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
 
 @Component
@@ -83,7 +86,20 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	}
 
 	@Override
-	protected List<Reference> sourcePatientsFromLinkageResources(List<IBaseResource> linkageResources) {
+	protected Set<? extends IBaseReference> alternatePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
+		List<Reference> sourceRefs =
+			linkageResources.stream()
+				.filter(r -> (r instanceof Linkage))
+				.map(r -> (Linkage) r)
+				.flatMap(k -> k.getItem().stream())
+				.filter(i -> i.getType() == LinkageType.ALTERNATE)
+				.map(i -> i.getResource())
+				.collect(java.util.stream.Collectors.toList());
+		return FhirResourceComparison.references().createSet( sourceRefs ) ;
+	}
+
+	@Override
+	protected Set<? extends IBaseReference> sourcePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
 		List<Reference> sourceRefs =
 			linkageResources.stream()
 				.filter(r -> (r instanceof Linkage))
@@ -92,9 +108,9 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				.filter(i -> i.getType() == LinkageType.SOURCE)
 				.map(i -> i.getResource())
 				.collect(java.util.stream.Collectors.toList());
-		return sourceRefs ;
+		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
-
+	
 	@Override
 	public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) {
 		Patient patient = new Patient();

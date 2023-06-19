@@ -29,6 +29,7 @@ public class SupplementalDataStoreProperties {
 	public static class Partition {
 
 		private String localName;
+		private String httpHeaderName = "X-Partition-Name";
 
 		public String getLocalName() {
 			return localName;
@@ -37,5 +38,14 @@ public class SupplementalDataStoreProperties {
 		public void setLocalName(String localPartitionId) {
 			this.localName = localPartitionId;
 		}
+
+		public String getHttpHeader() {
+			return httpHeaderName;
+		}
+
+		public void setHttpHeader(String httpHeaderName) {
+			this.httpHeaderName = httpHeaderName;
+		}
+		
 	}
 }

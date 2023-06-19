@@ -4,6 +4,7 @@ sds:
   require-base-url: false
   partition:
     local-name: SDS-LOCAL
+    http-header: X-Partition-Name
 management:
   endpoints:
     web:

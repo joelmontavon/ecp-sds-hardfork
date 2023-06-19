@@ -2,12 +2,17 @@ package edu.ohsu.cmp.ecp.sds.r4;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
+import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Linkage;
+import org.hl7.fhir.r4.model.Linkage.LinkageItemComponent;
 import org.hl7.fhir.r4.model.Linkage.LinkageType;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Practitioner;
@@ -19,8 +24,11 @@ import ca.uhn.fhir.jpa.api.dao.IFhirResourceDao;
 import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
+import ca.uhn.fhir.model.api.IQueryParameterType;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
+import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
 import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
 
 @Component
@@ -39,9 +47,90 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	@Inject
 	IFhirResourceDao<org.hl7.fhir.r4.model.Practitioner> daoPractitionerR4;
 
+	private static Predicate<IIdType> sameId( IIdType id ) {
+		return (i) -> {
+			if ( id.hasVersionIdPart() && i.hasVersionIdPart() && !id.getVersionIdPart().equals(i.getVersionIdPart()))
+				return false ;
+			if ( id.hasBaseUrl() && i.hasBaseUrl() && !id.getBaseUrl().equals(i.getBaseUrl()))
+				return false ;
+			if ( id.hasResourceType() && i.hasResourceType() && !id.getResourceType().equals(i.getResourceType()))
+				return false ;
+			if ( !id.hasIdPart() || !i.hasIdPart() )
+				return false ;
+			return id.getIdPart().equals( i.getIdPart() ) ;
+		};
+	}
+	
+	private static Predicate<Linkage.LinkageItemComponent> refersTo( IQueryParameterType param ) {
+		if ( param instanceof ReferenceParam ) {
+			ReferenceParam refParam = (ReferenceParam)param ;
+			return refersTo( new IdType( refParam.getResourceType(), refParam.getIdPart() ) ) ;
+		} else {
+			return (i) -> false ;
+		}
+	}
+	
+	private static Predicate<Linkage.LinkageItemComponent> refersTo( IIdType ref ) {
+		Predicate<IIdType> p = sameId( ref ) ;
+		return i -> i.hasResource() && i.getResource().hasReference() && p.test( i.getResource().getReferenceElement() ) ; 
+	}
+
+	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IQueryParameterType param ) {
+		if ( param instanceof ReferenceParam ) {
+			ReferenceParam refParam = (ReferenceParam)param ;
+			return sourceRefersTo( new IdType( refParam.getResourceType(), refParam.getIdPart() ) ) ;
+		} else {
+			return (i) -> false ;
+		}
+	}
+	
+
+	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IIdType ref ) {
+		Predicate<Linkage.LinkageItemComponent> p1 = refersTo( ref ) ;
+		return i -> i.getType() == Linkage.LinkageType.SOURCE && p1.test(i) ; 
+	}
+	
+	private Predicate<IBaseResource> linkageItemFilter( List<List<IQueryParameterType>> parameterValue ) {
+		if ( null == parameterValue )
+			return r -> true ;
+		return r -> {
+			if ( !(r instanceof Linkage ) )
+				return false ;
+			Linkage linkage = (Linkage)r ;
+			
+			return parameterValue.stream().allMatch( v1 -> v1.stream().anyMatch( v -> linkage.getItem().stream().anyMatch( refersTo( v ) ) ) ) ;
+		} ;
+	}
+	
+	private Predicate<IBaseResource> linkageSourceFilter( List<List<IQueryParameterType>> parameterValue ) {
+		if ( null == parameterValue )
+			return r -> true ;
+			return r -> {
+				if ( !(r instanceof Linkage ) )
+					return false ;
+				Linkage linkage = (Linkage)r ;
+				
+				return parameterValue.stream().allMatch( v1 -> v1.stream().anyMatch( v -> linkage.getItem().stream().anyMatch( sourceRefersTo( v ) ) ) ) ;
+			} ;
+	}
+	
 	@Override
 	protected List<IBaseResource> searchLinkageResources( SearchParameterMap linkageSearchParamMap, RequestDetails theRequestDetails ) {
-		return daoLinkageR4.search(linkageSearchParamMap, theRequestDetails).getAllResources();	
+		/*
+		 * server is failing to find existing LINKAGE resources while searching on ITEM
+		 * 
+		return daoLinkageR4.search(linkageSearchParamMap, theRequestDetails).getAllResources();
+		 */	
+		SearchParameterMap replacementSearchParameterMap = linkageSearchParamMap.clone() ;
+		Predicate<IBaseResource> itemFilter = linkageItemFilter( replacementSearchParameterMap.remove("item") ) ;
+		Predicate<IBaseResource> sourceFilter = linkageSourceFilter( replacementSearchParameterMap.remove("source") ) ;
+		return daoLinkageR4.search(replacementSearchParameterMap, theRequestDetails).getAllResources()
+				.stream()
+				.filter( itemFilter )
+				.filter( sourceFilter )
+				.collect( java.util.stream.Collectors.toList() )
+				;
+		
 	}
 
 	@Override
@@ -84,7 +173,20 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	}
 
 	@Override
-	protected List<Reference> sourcePatientsFromLinkageResources(List<IBaseResource> linkageResources) {
+	protected Set<? extends IBaseReference> alternatePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
+		List<Reference> sourceRefs =
+			linkageResources.stream()
+				.filter(r -> (r instanceof Linkage))
+				.map(r -> (Linkage) r)
+				.flatMap(k -> k.getItem().stream())
+				.filter(i -> i.getType() == LinkageType.ALTERNATE)
+				.map(i -> i.getResource())
+				.collect(java.util.stream.Collectors.toList());
+		return FhirResourceComparison.references().createSet( sourceRefs ) ;
+	}
+
+	@Override
+	protected Set<? extends IBaseReference> sourcePatientsFromLinkageResources(List<? extends IBaseResource> linkageResources) {
 		List<Reference> sourceRefs =
 			linkageResources.stream()
 				.filter(r -> (r instanceof Linkage))
@@ -93,9 +195,9 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				.filter(i -> i.getType() == LinkageType.SOURCE)
 				.map(i -> i.getResource())
 				.collect(java.util.stream.Collectors.toList());
-		return sourceRefs ;
+		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
-
+	
 	@Override
 	public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) {
 		Patient patient = new Patient();
