@@ -60,6 +60,8 @@ public class SupplementalDataStoreLinkingInterceptor {
 		 */
 		
 		IIdType authorizedNonLocalUserId = auth.authorizedPatientId(theRequestDetails);
+		if ( null == authorizedNonLocalUserId )
+			return ;
 		theRequestDetails.setAttribute(REQUEST_ATTR_NONLOCAL_PATIENT_ID, authorizedNonLocalUserId);
 
 		/*

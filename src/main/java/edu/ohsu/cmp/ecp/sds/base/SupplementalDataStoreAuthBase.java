@@ -16,11 +16,15 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 		if (null == authentication)
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Authorization");
 
-		OAuth2AuthenticatedPrincipal principal = (OAuth2AuthenticatedPrincipal) authentication.getPrincipal();
-		if (null == principal)
+		Object principal = authentication.getPrincipal() ;
+		if ( null == principal )
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Principal");
+		
+		if ( !(principal instanceof OAuth2AuthenticatedPrincipal) )
+			return null;
 
-		Object subject = principal.getAttribute("sub");
+		OAuth2AuthenticatedPrincipal oauth2Principal = (OAuth2AuthenticatedPrincipal) authentication.getPrincipal();
+		Object subject = oauth2Principal.getAttribute("sub");
 		if (null == subject)
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Subject");
 

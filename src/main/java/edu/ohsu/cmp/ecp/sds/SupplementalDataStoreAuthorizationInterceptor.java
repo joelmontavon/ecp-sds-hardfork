@@ -40,16 +40,29 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 	@Override
 	public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
 		IAuthRuleBuilder ruleBuilder = new RuleBuilder();
+		
+		ruleBuilder = ruleBuilder
+			.allow( "capability statement" )
+			.metadata()
+			.andThen()
+			;
 
 		IIdType authorizedNonLocalUserId = getAuthorizedNonLocalPatientId(theRequestDetails);
 
-		if (!"Patient".equalsIgnoreCase(authorizedNonLocalUserId.getResourceType())) {
+		if ( null == authorizedNonLocalUserId ) {
 			/* return early, no details of the patient identity are available */
 			return ruleBuilder
-				.denyAll("expected user to be authorized as \"Patient\" but encountered \"" + authorizedNonLocalUserId.getResourceType() + "\"")
+				.denyAll("expected user to be authorized")
 				.build();
 		}
 
+		if ( !"Patient".equalsIgnoreCase(authorizedNonLocalUserId.getResourceType())) {
+			/* return early, no details of the patient identity are available */
+			return ruleBuilder
+					.denyAll("expected user to be authorized as \"Patient\" but encountered \"" + authorizedNonLocalUserId.getResourceType() + "\"")
+					.build();
+		}
+		
 		IIdType authorizedLocalUserId = getAuthorizedLocalPatientId(theRequestDetails);
 
 		/*

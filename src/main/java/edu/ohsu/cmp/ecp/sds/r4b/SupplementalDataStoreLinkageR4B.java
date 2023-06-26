@@ -28,7 +28,7 @@ import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
 
 @Component
 @Conditional(OnR4BCondition.class)
-public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkageBase {
+public class SupplementalDataStoreLinkageR4B extends SupplementalDataStoreLinkageBase {
 
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;

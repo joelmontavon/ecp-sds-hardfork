@@ -6,8 +6,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -17,7 +15,6 @@ import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.Linkage.LinkageItemComponent;
 import org.hl7.fhir.r4.model.Patient;
-import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
@@ -37,25 +34,6 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	private static final String FOREIGN_PARTITION_NAME = "http://my.ehr.org/fhir/R4/" ;
 	private static final String FOREIGN_PARTITION_NAME_OTHER = "http://other.ehr.org/fhir/R4/" ;
-
-	private Patient initPatient( String id ) {
-		Calendar cal = Calendar.getInstance() ;
-		cal.set(0, 0, 0) ;
-		Date birthDate = cal.getTime() ;
-		
-		Patient pat = new Patient();
-		pat.setId( new IdType( "Patient", id ) ) ;
-		pat.setBirthDate( birthDate ) ;
-		
-		return pat ;
-	}
-
-	private Condition initCondition( IIdType subject, String id ) {
-		Condition condition = new Condition() ;
-		condition.setId( new IdType( "Condition", id ) ) ;
-		condition.setSubject( new Reference( subject ) ) ;
-		return condition ;
-	}
 
 	@Test
 	void cannotStoreOtherResourceInForeignPartitionBeforePatient() {

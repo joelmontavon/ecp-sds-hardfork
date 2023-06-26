@@ -30,6 +30,9 @@ public class SupplementalDataStorePartitioningConfig {
 	SupplementalDataStoreAuthorizationInterceptor authorizationInterceptor;
 
 	@Inject
+	SupplementalDataStoreAuthorizationCapabilityInterceptor authorizationCapabilityInterceptor;
+	
+	@Inject
 	SupplementalDataStoreLinkingInterceptor linkingInterceptor;
 
 	@Inject
@@ -52,6 +55,8 @@ public class SupplementalDataStorePartitioningConfig {
 	
 	@PostConstruct
 	public void configureAuthorization() {
+		server.registerInterceptor(authorizationCapabilityInterceptor);
+		
 		IAuthorizationSearchParamMatcher theAuthorizationSearchParamMatcher = new AuthorizationSearchParamMatcher(searchParamMatcher);
 		authorizationInterceptor.setAuthorizationSearchParamMatcher(theAuthorizationSearchParamMatcher);
 		server.registerInterceptor(authorizationInterceptor);

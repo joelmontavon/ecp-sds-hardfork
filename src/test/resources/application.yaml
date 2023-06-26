@@ -6,6 +6,11 @@ spring:
   main:
     allow-circular-references: true
     #allow-bean-definition-overriding: true
+  security:
+    oauth2:
+      resourceserver:
+        opaque-token:
+          introspection-uri: http://my.ehr.org/oauth2/introspect
   flyway:
     enabled: false
     check-location: false
