@@ -1,9 +1,7 @@
 package edu.ohsu.cmp.ecp.sds;
 
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getAuthorizedLocalPatientId;
 import static java.util.stream.Collectors.joining;
 
-import java.util.List;
 import java.util.Set;
 
 import javax.inject.Inject;

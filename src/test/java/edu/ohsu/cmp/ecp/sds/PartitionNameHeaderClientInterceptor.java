@@ -3,7 +3,6 @@ package edu.ohsu.cmp.ecp.sds;
 import java.io.IOException;
 
 import ca.uhn.fhir.rest.client.api.IClientInterceptor;
-import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.api.IHttpRequest;
 import ca.uhn.fhir.rest.client.api.IHttpResponse;
 

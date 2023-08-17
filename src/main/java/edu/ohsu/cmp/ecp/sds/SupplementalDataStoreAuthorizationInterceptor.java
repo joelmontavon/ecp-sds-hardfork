@@ -1,11 +1,11 @@
 package edu.ohsu.cmp.ecp.sds;
 
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.*;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getAuthorizedLocalPatientId;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getAuthorizedNonLocalPatientId;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getClaimingNonLocalPatientId;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 
 import javax.inject.Inject;
 
@@ -13,9 +13,7 @@ import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.stereotype.Component;
 
-import ca.uhn.fhir.interceptor.api.Hook;
 import ca.uhn.fhir.interceptor.api.Interceptor;
-import ca.uhn.fhir.interceptor.api.Pointcut;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.interceptor.auth.AuthorizationInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
