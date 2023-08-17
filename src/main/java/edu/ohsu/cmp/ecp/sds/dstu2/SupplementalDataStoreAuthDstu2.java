@@ -14,11 +14,16 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 import ca.uhn.fhir.jpa.starter.annotations.OnDSTU2Condition;
-import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissions;
 
 @Component
 @Conditional(OnDSTU2Condition.class)
 public class SupplementalDataStoreAuthDstu2 extends SupplementalDataStoreAuthBase {
+
+	public SupplementalDataStoreAuthDstu2(SupplementalDataStorePermissions permissions) {
+		super( permissions );
+	}
 
 	@Override
 	protected IIdType idFromSubject(String subject) {

@@ -13,11 +13,16 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 import ca.uhn.fhir.jpa.starter.annotations.OnR4BCondition;
-import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissions;
 
 @Component
 @Conditional(OnR4BCondition.class)
 public class SupplementalDataStoreAuthR4B extends SupplementalDataStoreAuthBase {
+
+	public SupplementalDataStoreAuthR4B(SupplementalDataStorePermissions permissions) {
+		super( permissions );
+	}
 
 	@Override
 	protected IIdType idFromSubject(String subject) {

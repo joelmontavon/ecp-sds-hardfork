@@ -6,7 +6,6 @@ import org.hl7.fhir.instance.model.api.IBaseConformance;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.CapabilityStatement;
 import org.hl7.fhir.r4.model.IdType;
-import org.hl7.fhir.r4.model.StringType;
 import org.hl7.fhir.r4.model.UriType;
 import org.hl7.fhir.r4.model.CapabilityStatement.CapabilityStatementRestComponent;
 import org.hl7.fhir.r4.model.Extension;
@@ -14,13 +13,16 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
-import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreAuthBase;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissions;
 
 @Component
 @Conditional(OnR4Condition.class)
 public class SupplementalDataStoreAuthR4 extends SupplementalDataStoreAuthBase {
 
-	
+	public SupplementalDataStoreAuthR4(SupplementalDataStorePermissions permissions) {
+		super( permissions );
+	}
 	
 	@Override
 	protected IIdType idFromSubject(String subject) {

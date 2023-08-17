@@ -1,18 +1,44 @@
-package edu.ohsu.cmp.ecp.sds.base;
+package edu.ohsu.cmp.ecp.sds;
 
-import ca.uhn.fhir.i18n.Msg;
-import ca.uhn.fhir.rest.api.server.RequestDetails;
-import ca.uhn.fhir.rest.server.exceptions.AuthenticationException;
-import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreAuth;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
 
+import ca.uhn.fhir.i18n.Msg;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.server.exceptions.AuthenticationException;
+
 public abstract class SupplementalDataStoreAuthBase implements SupplementalDataStoreAuth {
+
+	private SupplementalDataStorePermissions permissions; 
+	
+	public SupplementalDataStoreAuthBase(SupplementalDataStorePermissions permissions) {
+		this.permissions = permissions;
+	}
 
 	public IIdType authorizedPatientId(RequestDetails theRequestDetails) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		
+		IIdType authorizedUserId = authorizedUserIdFromAuthentication( authentication ) ;
+		if ( null == authorizedUserId )
+			return null ;
+
+		String authorizedResourceType = authorizedUserId.getResourceType();
+		
+		if ( "Patient".equalsIgnoreCase(authorizedResourceType) )
+			return authorizedUserId ;
+		
+		// authorizedUserId is not a patient; identify the patient for which they have permission
+		IIdType writeablePatientId = permissions.resolveWritablePatientIdFor( authorizedUserId, authentication );
+		if ( null != writeablePatientId )
+			return writeablePatientId ;
+
+		throw new AuthenticationException(Msg.code(644) + "Principal \"" + authorizedUserId + "\" Not Authorized For Any Patient");
+
+	}
+	
+	private IIdType authorizedUserIdFromAuthentication(Authentication authentication) {
 		if (null == authentication)
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Authorization");
 
