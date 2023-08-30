@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.server.resource.introspection.OpaqueT
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 
 import edu.ohsu.cmp.ecp.sds.AuthAwareTestConfig;
+import edu.ohsu.cmp.ecp.sds.HttpAwareTestConfig;
 
 @Configuration
 public class AppTestMockOAuth2SecurityConfig {
@@ -28,6 +29,7 @@ public class AppTestMockOAuth2SecurityConfig {
 	AppTestMockPrincipalRegistry principalRegistry ;
 	
 	@Bean @Primary
+	@ConditionalOnMissingBean( HttpAwareTestConfig.class )
 	public OpaqueTokenIntrospector mockOpaqueTokenIntrospector() {
 		return new MockOpaqueTokenIntrospector() ;
 	}

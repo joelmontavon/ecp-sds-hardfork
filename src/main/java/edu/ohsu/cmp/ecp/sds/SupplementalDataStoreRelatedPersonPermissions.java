@@ -4,10 +4,13 @@ import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.stereotype.Component;
 
 import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.client.api.IClientInterceptor;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.interceptor.BearerTokenAuthInterceptor;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreRelatedPersonPermissions;
 
 @Component
@@ -31,8 +34,24 @@ public class SupplementalDataStoreRelatedPersonPermissions implements Supplement
 			return null ;
 		}
 		
+		Object credentials = authentication.getCredentials();
+		if ( null == credentials ) {
+			ourLog.warn( "cannot resolve writable patient id for \"" + authorizedUserId + "\" without oauth2 token"  ) ;
+			return null ;
+		}
+		
+		if ( !(credentials instanceof OAuth2Token) ) {
+			String credentialsType = credentials.getClass().getSimpleName();
+			ourLog.warn( "cannot resolve writable patient id for \"" + authorizedUserId + "\" without oauth2 token (got a " + credentialsType + " credential)"  ) ;
+			return null ;
+		}
+		OAuth2Token token = (OAuth2Token)credentials ;
+		
 		String baseUrl = authorizedUserId.getBaseUrl();
 		IGenericClient fhirClient = fhirContext.newRestfulGenericClient( baseUrl ) ;
+		
+		IClientInterceptor authorizationInterceptor = new BearerTokenAuthInterceptor( token.getTokenValue() ) ;
+		fhirClient.registerInterceptor( authorizationInterceptor );
 		
 		try {
 			

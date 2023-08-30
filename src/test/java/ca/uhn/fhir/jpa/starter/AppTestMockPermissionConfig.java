@@ -5,11 +5,13 @@ import java.util.List;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.IdType;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.core.Authentication;
 
+import edu.ohsu.cmp.ecp.sds.HttpAwareTestConfig;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissions;
 import junit.framework.AssertionFailedError;
 
@@ -20,6 +22,7 @@ public class AppTestMockPermissionConfig {
 	AppTestMockPermissionRegistry permissionRegistry ;
 
 	@Bean @Primary
+	@ConditionalOnMissingBean( HttpAwareTestConfig.class )
 	public SupplementalDataStorePermissions mockSupplementalDataStorePermissions() {
 		return new MockSupplementalDataStorePermissions() ;
 	}
