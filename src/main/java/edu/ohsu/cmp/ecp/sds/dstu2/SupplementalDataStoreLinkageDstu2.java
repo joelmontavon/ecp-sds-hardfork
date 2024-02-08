@@ -32,6 +32,9 @@ public class SupplementalDataStoreLinkageDstu2 extends SupplementalDataStoreLink
 	@Inject
 	IFhirResourceDao<ca.uhn.fhir.model.dstu2.resource.Practitioner> daoPractitionerDstu2;
 
+	@Inject
+	IFhirResourceDao<ca.uhn.fhir.model.dstu2.resource.RelatedPerson> daoRelatedPersonDstu2;
+
 	private RuntimeException linkageResourceNotDefinedInDstu2() {
 		return new UnsupportedOperationException( "SDS does not support FHIR version DSTU2 because it does not include a definition for the Linkage resource" );
 	}
@@ -73,6 +76,11 @@ public class SupplementalDataStoreLinkageDstu2 extends SupplementalDataStoreLink
 
 	@Override
 	public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) {
+		throw linkageResourceNotDefinedInDstu2() ;
+	}
+
+	@Override
+	public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) {
 		throw linkageResourceNotDefinedInDstu2() ;
 	}
 }

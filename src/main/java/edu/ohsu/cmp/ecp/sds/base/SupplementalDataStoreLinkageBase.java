@@ -121,12 +121,16 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 			return createLocalPatient( localPartitionRequest() );
 		else if ("Practitioner".equalsIgnoreCase(resourceType))
 			return createLocalPractitioner( localPartitionRequest() );
+		else if ("RelatedPerson".equalsIgnoreCase(resourceType))
+			return createLocalRelatedPerson( localPartitionRequest() );
 		else
-			throw new InvalidRequestException("expected a Patient or Practitioner user but encountered a " + resourceType);
+			throw new InvalidRequestException("cannot create local user resource: expected a Patient or Practitioner user but encountered a " + resourceType);
 	}
 
 	abstract public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) ;
 	
 	abstract public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) ;
 	
+	abstract public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) ;
+
 }

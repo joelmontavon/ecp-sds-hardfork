@@ -1,15 +1,11 @@
 package edu.ohsu.cmp.ecp.sds;
 
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getAuthorizedLocalPatientId;
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getAuthorizedNonLocalPatientId;
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getClaimingNonLocalPatientId;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getPermissions;
 
 import java.util.List;
-import java.util.Set;
 
 import javax.inject.Inject;
 
-import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +15,7 @@ import ca.uhn.fhir.rest.server.interceptor.auth.AuthorizationInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRuleBuilder;
 import ca.uhn.fhir.rest.server.interceptor.auth.RuleBuilder;
-import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.Permissions;
 
 @Interceptor
 @Component
@@ -32,9 +28,6 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 	@Inject
 	SupplementalDataStoreAuth auth;
 
-	@Inject
-	SupplementalDataStoreLinkage linkage;
-	
 	@Override
 	public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
 		IAuthRuleBuilder ruleBuilder = new RuleBuilder();
@@ -45,24 +38,54 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.andThen()
 			;
 
-		IIdType authorizedNonLocalUserId = getAuthorizedNonLocalPatientId(theRequestDetails);
+		Permissions permissions = getPermissions(theRequestDetails);
 
-		if ( null == authorizedNonLocalUserId ) {
-			/* return early, no details of the patient identity are available */
+		if ( null == permissions ) {
+			/* return early, no details of the authorization are available */
 			return ruleBuilder
-				.denyAll("expected user to be authorized")
+				.denyAll("expected user to be authorized for patient read and/or write")
 				.build();
 		}
 
-		if ( !"Patient".equalsIgnoreCase(authorizedNonLocalUserId.getResourceType())) {
+		if ( permissions.readAllPatients().isEmpty() && permissions.readAndWriteSpecificPatient().isEmpty() ) {
 			/* return early, no details of the patient identity are available */
 			return ruleBuilder
-					.denyAll("expected user to be authorized as \"Patient\" but encountered \"" + authorizedNonLocalUserId.getResourceType() + "\"")
+					.denyAll("expected user \"" + permissions.authorizedNonLocalUserId() + "\" to be authorized for patient read and/or write")
 					.build();
 		}
 		
-		IIdType authorizedLocalUserId = getAuthorizedLocalPatientId(theRequestDetails);
+		if ( permissions.readAllPatients().isPresent() )
+			ruleBuilder = buildRuleListForPermissions( ruleBuilder, permissions.readAllPatients().get() ) ;
 
+		if ( permissions.readAndWriteSpecificPatient().isPresent() )
+			ruleBuilder = buildRuleListForPermissions( ruleBuilder, permissions.readAndWriteSpecificPatient().get() ) ;
+
+		return ruleBuilder.denyAll("everything else").build();
+	}
+
+	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAllPatients readAllPatients ) {
+		/* permit access to all sds-foreign records for any patient in each partition */
+		ruleBuilder = ruleBuilder
+			.allow("read any non-local patient")
+			.read()
+			.allResources()
+			.withAnyId()
+			.andThen()
+		;
+
+		/* permit access to all sds-local linkages that link to specific patient */
+		ruleBuilder = ruleBuilder
+			.allow("read linkages for any non-local patient")
+			.read()
+			.resourcesOfType("Linkage")
+			.withAnyId()
+			.andThen()
+			;
+
+		return ruleBuilder ;
+	}
+
+	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatients ) {
 		/*
 		 * IF the request is a foreign Patient create
 		 * THEN add the new Patient id to the local patient Linkage
@@ -74,7 +97,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 		 * THEN add the Patient id to the local patient Linkage
 		 */
 		
-		final IIdType localPatientId = authorizedLocalUserId;
+		final IIdType localPatientId = readAndWriteSpecificPatients.patientId().localUserId() ;
 
 		/* permit access to all sds-local records for specific patient */
 		ruleBuilder = ruleBuilder
@@ -99,21 +122,8 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.andThen()
 			;
 
-		Set<IIdType> nonLocalPatientIds = FhirResourceComparison.idTypes().createSet() ;
-		
 		/* permit access to all sds-foreign records for specific patient in each partition */
-		for ( IBaseReference nonLocalPatient : linkage.patientsLinkedTo(localPatientId) ) {
-			IIdType nonLocalPatientId = nonLocalPatient.getReferenceElement();
-			nonLocalPatientIds.add( nonLocalPatientId );
-		}
-		
-		/* permit access to all sds-foreign records for specific patient in each partition */
-		IIdType claimingNonLocalUserId = getClaimingNonLocalPatientId(theRequestDetails);
-		if ( null != claimingNonLocalUserId ) {
-			nonLocalPatientIds.add( claimingNonLocalUserId ) ;
-		}
-		
-		for (IIdType nonLocalPatientId : nonLocalPatientIds ) {
+		for (IIdType nonLocalPatientId : readAndWriteSpecificPatients.patientId().nonLocalUserIds() ) {
 			ruleBuilder = ruleBuilder
 				.allow("read non-local patient " + nonLocalPatientId)
 				.read()
@@ -137,6 +147,6 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 				;
 		}
 
-		return ruleBuilder.denyAll("everything else").build();
+		return ruleBuilder;
 	}
 }

@@ -17,7 +17,7 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 		this.permissions = permissions;
 	}
 
-	public IIdType authorizedPatientId(RequestDetails theRequestDetails) {
+	public AuthorizationProfile authorizationProfile(RequestDetails theRequestDetails) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		
 		IIdType authorizedUserId = authorizedUserIdFromAuthentication( authentication ) ;
@@ -26,13 +26,16 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 
 		String authorizedResourceType = authorizedUserId.getResourceType();
 		
+		if ( "Practitioner".equalsIgnoreCase(authorizedResourceType) )
+			return SupplementalDataStoreAuthProfile.forPractitioner( authorizedUserId ) ;
+
 		if ( "Patient".equalsIgnoreCase(authorizedResourceType) )
-			return authorizedUserId ;
+			return SupplementalDataStoreAuthProfile.forPatient( authorizedUserId ) ;
 		
 		// authorizedUserId is not a patient; identify the patient for which they have permission
 		IIdType writeablePatientId = permissions.resolveWritablePatientIdFor( authorizedUserId, authentication );
 		if ( null != writeablePatientId )
-			return writeablePatientId ;
+			return SupplementalDataStoreAuthProfile.forOtherPatient( authorizedUserId, writeablePatientId ) ;
 
 		throw new AuthenticationException(Msg.code(644) + "Principal \"" + authorizedUserId + "\" Not Authorized For Any Patient");
 

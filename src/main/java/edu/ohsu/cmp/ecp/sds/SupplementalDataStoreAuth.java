@@ -9,8 +9,15 @@ import org.hl7.fhir.instance.model.api.IIdType;
 
 public interface SupplementalDataStoreAuth {
 
-	IIdType authorizedPatientId(RequestDetails theRequestDetails);
+	AuthorizationProfile authorizationProfile(RequestDetails theRequestDetails);
 
 	void addAuthCapability(IBaseConformance theCapabilityStatement, URI authorizeUri, URI tokenUri );
+
+	public interface AuthorizationProfile {
+
+		IIdType getAuthorizedUserId() ;
+		IIdType getTargetPatientId() ;
+
+	}
 
 }

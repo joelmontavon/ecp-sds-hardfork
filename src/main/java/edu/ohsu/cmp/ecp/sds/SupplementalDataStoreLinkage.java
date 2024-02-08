@@ -10,7 +10,7 @@ public interface SupplementalDataStoreLinkage {
 	Set<? extends IBaseReference> patientsLinkedTo(IIdType sourcePatientId);
 	Set<? extends IBaseReference> patientsLinkedFrom(IIdType alternatePatientId);
 
-	IIdType establishLocalUserFor(IIdType nonLocalUserId);
+	IIdType establishLocalUserFor(IIdType nonLocalPatientId);
 
 	void linkNonLocalPatientToLocalPatient(IIdType localPatientId, IIdType nonLocalPatientId);
 }

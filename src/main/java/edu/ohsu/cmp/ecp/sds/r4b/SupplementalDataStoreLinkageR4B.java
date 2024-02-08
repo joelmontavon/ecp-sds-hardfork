@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4b.model.RelatedPerson;
 import org.hl7.fhir.r4b.model.Linkage;
 import org.hl7.fhir.r4b.model.Linkage.LinkageType;
 import org.hl7.fhir.r4b.model.Patient;
@@ -41,6 +42,9 @@ public class SupplementalDataStoreLinkageR4B extends SupplementalDataStoreLinkag
 
 	@Inject
 	IFhirResourceDao<org.hl7.fhir.r4b.model.Practitioner> daoPractitionerR4B;
+
+	@Inject
+	IFhirResourceDao<org.hl7.fhir.r4b.model.RelatedPerson> daoRelatedPersonR4B;
 
 	@Override
 	protected List<IBaseResource> searchLinkageResources( SearchParameterMap linkageSearchParamMap, RequestDetails theRequestDetails ) {
@@ -122,6 +126,13 @@ public class SupplementalDataStoreLinkageR4B extends SupplementalDataStoreLinkag
 	public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) {
 		Practitioner practitioner = new Practitioner();
 		DaoMethodOutcome createOutcome = daoPractitionerR4B.create(practitioner, theRequestDetails );
+		return createOutcome.getResource();
+	}
+
+	@Override
+	public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) {
+		RelatedPerson relatedPerson = new RelatedPerson();
+		DaoMethodOutcome createOutcome = daoRelatedPersonR4B.create(relatedPerson, theRequestDetails );
 		return createOutcome.getResource();
 	}
 }

@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.dstu3.model.RelatedPerson;
 import org.hl7.fhir.dstu3.model.Linkage;
 import org.hl7.fhir.dstu3.model.Linkage.LinkageType;
 import org.hl7.fhir.dstu3.model.Patient;
@@ -42,9 +43,12 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 	@Inject
 	IFhirResourceDao<org.hl7.fhir.dstu3.model.Practitioner> daoPractitionerDstu3;
 
+	@Inject
+	IFhirResourceDao<org.hl7.fhir.dstu3.model.RelatedPerson> daoRelatedPersonDstu3;
+
 	@Override
 	protected List<IBaseResource> searchLinkageResources( SearchParameterMap linkageSearchParamMap, RequestDetails theRequestDetails ) {
-		return daoLinkageDstu3.search(linkageSearchParamMap, theRequestDetails).getAllResources();	
+		return daoLinkageDstu3.search(linkageSearchParamMap, theRequestDetails).getAllResources();
 	}
 
 	@Override
@@ -59,7 +63,7 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 					}
 				}
 			}
-		}		
+		}
 		return linkageResources;
 	}
 
@@ -122,6 +126,13 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 	public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) {
 		Practitioner practitioner = new Practitioner();
 		DaoMethodOutcome createOutcome = daoPractitionerDstu3.create(practitioner, theRequestDetails );
+		return createOutcome.getResource();
+	}
+
+	@Override
+	public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) {
+		RelatedPerson relatedPerson = new RelatedPerson();
+		DaoMethodOutcome createOutcome = daoRelatedPersonDstu3.create(relatedPerson, theRequestDetails );
 		return createOutcome.getResource();
 	}
 }

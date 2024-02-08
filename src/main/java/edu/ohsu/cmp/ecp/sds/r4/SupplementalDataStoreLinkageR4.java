@@ -16,6 +16,7 @@ import org.hl7.fhir.r4.model.Linkage.LinkageType;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Practitioner;
 import org.hl7.fhir.r4.model.Reference;
+import org.hl7.fhir.r4.model.RelatedPerson;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
 import ca.uhn.fhir.model.api.IQueryParameterType;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
@@ -45,6 +47,9 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 
 	@Inject
 	IFhirResourceDao<org.hl7.fhir.r4.model.Practitioner> daoPractitionerR4;
+
+	@Inject
+	IFhirResourceDao<org.hl7.fhir.r4.model.RelatedPerson> daoRelatedPersonR4;
 
 	private static Predicate<IIdType> sameId( IIdType id ) {
 		return (i) -> {
@@ -71,7 +76,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	
 	private static Predicate<Linkage.LinkageItemComponent> refersTo( IIdType ref ) {
 		Predicate<IIdType> p = sameId( ref ) ;
-		return i -> i.hasResource() && i.getResource().hasReference() && p.test( i.getResource().getReferenceElement() ) ; 
+		return i -> i.hasResource() && i.getResource().hasReference() && p.test( i.getResource().getReferenceElement() ) ;
 	}
 
 	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IQueryParameterType param ) {
@@ -86,7 +91,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 
 	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IIdType ref ) {
 		Predicate<Linkage.LinkageItemComponent> p1 = refersTo( ref ) ;
-		return i -> i.getType() == Linkage.LinkageType.SOURCE && p1.test(i) ; 
+		return i -> i.getType() == Linkage.LinkageType.SOURCE && p1.test(i) ;
 	}
 	
 	private Predicate<IBaseResource> linkageItemFilter( List<List<IQueryParameterType>> parameterValue ) {
@@ -119,7 +124,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 		 * server is failing to find existing LINKAGE resources while searching on ITEM
 		 * 
 		return daoLinkageR4.search(linkageSearchParamMap, theRequestDetails).getAllResources();
-		 */	
+		 */
 		SearchParameterMap replacementSearchParameterMap = linkageSearchParamMap.clone() ;
 		Predicate<IBaseResource> itemFilter = linkageItemFilter( replacementSearchParameterMap.remove("item") ) ;
 		Predicate<IBaseResource> sourceFilter = linkageSourceFilter( replacementSearchParameterMap.remove("source") ) ;
@@ -145,7 +150,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 					}
 				}
 			}
-		}		
+		}
 		return linkageResources;
 	}
 
@@ -168,7 +173,14 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 		Linkage linkage = new Linkage();
 		linkage.addItem().setType(LinkageType.SOURCE).setResource(new Reference(sourcePatientId));
 		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(new Reference(alternatePatientId));
-		daoLinkageR4.create(linkage, theRequestDetails);
+		IBundleProvider searchBefore = daoLinkageR4.search( new SearchParameterMap(), theRequestDetails ) ;
+		System.out.println( "*** createLinkage: before: " + searchBefore.size() + " linkage resources" ) ;
+		DaoMethodOutcome outcome = daoLinkageR4.create(linkage, theRequestDetails);
+		IBundleProvider searchAfter = daoLinkageR4.search( new SearchParameterMap(), theRequestDetails ) ;
+		System.out.println( "*** createLinkage: after: " + searchAfter.size() + " linkage resources") ;
+		if ( Boolean.TRUE != outcome.getCreated() ) {
+			throw new RuntimeException( "failed to create linkage between " + sourcePatientId + " and " + alternatePatientId ) ;
+		}
 	}
 
 	@Override
@@ -208,6 +220,13 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) {
 		Practitioner practitioner = new Practitioner();
 		DaoMethodOutcome createOutcome = daoPractitionerR4.create(practitioner, theRequestDetails );
+		return createOutcome.getResource();
+	}
+
+	@Override
+	public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) {
+		RelatedPerson relatedPerson = new RelatedPerson();
+		DaoMethodOutcome createOutcome = daoRelatedPersonR4.create(relatedPerson, theRequestDetails );
 		return createOutcome.getResource();
 	}
 }

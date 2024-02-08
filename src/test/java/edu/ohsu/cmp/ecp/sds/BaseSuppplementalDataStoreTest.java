@@ -44,6 +44,7 @@ import ca.uhn.fhir.util.BundleBuilder;
 		}
 	)
 @ActiveProfiles( "partition-aware-test")
+@org.springframework.transaction.annotation.Transactional
 public abstract class BaseSuppplementalDataStoreTest {
 
 	@LocalServerPort
@@ -65,6 +66,10 @@ public abstract class BaseSuppplementalDataStoreTest {
 		Set<String> baseUrls = new HashSet<>( myModelConfig.getTreatBaseUrlsAsLocal() ) ;
 		baseUrls.add( ourServerBase ) ;
 		myModelConfig.setTreatBaseUrlsAsLocal( baseUrls ) ;
+	}
+
+	protected String fhirServerlBase() {
+		return ourServerBase ;
 	}
 
 	private int testSpecificIdCount ;
