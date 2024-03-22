@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 
+import edu.ohsu.cmp.ecp.util.RequestDetailsUtil;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.springframework.stereotype.Component;
 
@@ -31,14 +32,16 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 	@Override
 	public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
 		IAuthRuleBuilder ruleBuilder = new RuleBuilder();
-		
+		 ourLog.info("in buildRuleList() with theRequestDetails=" + RequestDetailsUtil.toString(theRequestDetails));
+
 		ruleBuilder = ruleBuilder
 			.allow( "capability statement" )
 			.metadata()
 			.andThen()
-			;
+		;
 
 		Permissions permissions = getPermissions(theRequestDetails);
+		ourLog.info("permissions=" + permissions);
 
 		if ( null == permissions ) {
 			/* return early, no details of the authorization are available */
@@ -80,7 +83,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.resourcesOfType("Linkage")
 			.withAnyId()
 			.andThen()
-			;
+		;
 
 		return ruleBuilder ;
 	}
@@ -120,7 +123,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.resourcesOfType("Linkage")
 			.withFilter( "item=" + localPatientId.getIdPart() )
 			.andThen()
-			;
+		;
 
 		/* permit access to all sds-foreign records for specific patient in each partition */
 		for (IIdType nonLocalPatientId : readAndWriteSpecificPatients.patientId().nonLocalUserIds() ) {
@@ -144,7 +147,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 				.resourcesOfType("Linkage")
 				.withFilter( "item=" + nonLocalPatientId.getIdPart() )
 				.andThen()
-				;
+			;
 		}
 
 		return ruleBuilder;

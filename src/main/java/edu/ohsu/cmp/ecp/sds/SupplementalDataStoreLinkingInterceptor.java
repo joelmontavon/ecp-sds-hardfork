@@ -2,12 +2,11 @@ package edu.ohsu.cmp.ecp.sds;
 
 import static java.util.stream.Collectors.joining;
 
-import java.util.Collection;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import javax.inject.Inject;
 
+import edu.ohsu.cmp.ecp.util.IIdTypeUtil;
 import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
@@ -58,6 +57,16 @@ public class SupplementalDataStoreLinkingInterceptor {
 			nonLocalUserIds.forEach( this::requireMatchingIdType );
 		}
 
+		@Override
+		public String toString() {
+			return "UserIdentity{" +
+				"userResourceType='" + userResourceType + '\'' +
+				", basisNonLocalUserId=" + IIdTypeUtil.toString(basisNonLocalUserId) +
+				", localUserId=" + IIdTypeUtil.toString(localUserId) +
+				", nonLocalUserIds=" + IIdTypeUtil.toString(nonLocalUserIds) +
+				'}';
+		}
+
 		public String userResourceType() {
 			return userResourceType;
 		}
@@ -87,16 +96,25 @@ public class SupplementalDataStoreLinkingInterceptor {
 		private final Optional<ReadAllPatients> readAllPatients ;
 		private final Optional<ReadAndWriteSpecificPatient> readAndWriteSpecificPatient ;
 
-		public Permissions( ReadAllPatients readAllPatients ) {
+		public Permissions(ReadAllPatients readAllPatients) {
 			this.readAllPatients = Optional.of(readAllPatients);
 			authorizedNonLocalUserId = readAllPatients.authorizedNonLocalUserId() ;
 			this.readAndWriteSpecificPatient = Optional.empty();
 		}
 
-		public Permissions( ReadAndWriteSpecificPatient readAndWriteSpecificPatient) {
+		public Permissions(ReadAndWriteSpecificPatient readAndWriteSpecificPatient) {
 			this.readAllPatients = Optional.empty();
 			this.readAndWriteSpecificPatient = Optional.of( readAndWriteSpecificPatient );
 			authorizedNonLocalUserId = readAndWriteSpecificPatient.authorizedNonLocalUserId() ;
+		}
+
+		@Override
+		public String toString() {
+			return "Permissions{" +
+				"authorizedNonLocalUserId=" + IIdTypeUtil.toString(authorizedNonLocalUserId) +
+				", readAllPatients=" + readAllPatients +
+				", readAndWriteSpecificPatient=" + readAndWriteSpecificPatient +
+				'}';
 		}
 
 		public IIdType authorizedNonLocalUserId() {
@@ -117,6 +135,13 @@ public class SupplementalDataStoreLinkingInterceptor {
 				this.authorizedNonLocalUserId = authorizedNonLocalUserId;
 			}
 
+			@Override
+			public String toString() {
+				return "ReadAllPatients{" +
+					"authorizedNonLocalUserId=" + IIdTypeUtil.toString(authorizedNonLocalUserId) +
+					'}';
+			}
+
 			public IIdType authorizedNonLocalUserId() {
 				return authorizedNonLocalUserId ;
 			}
@@ -130,6 +155,14 @@ public class SupplementalDataStoreLinkingInterceptor {
 			public ReadAndWriteSpecificPatient(IIdType authorizedNonLocalUserId, UserIdentity patientId) {
 				this.authorizedNonLocalUserId = authorizedNonLocalUserId;
 				this.patientId = patientId;
+			}
+
+			@Override
+			public String toString() {
+				return "ReadAndWriteSpecificPatient{" +
+					"authorizedNonLocalUserId=" + IIdTypeUtil.toString(authorizedNonLocalUserId) +
+					", patientId=" + patientId +
+					'}';
 			}
 
 			public IIdType authorizedNonLocalUserId() {
@@ -157,6 +190,8 @@ public class SupplementalDataStoreLinkingInterceptor {
 		AuthorizationProfile authProfile = auth.authorizationProfile(theRequestDetails);
 		if ( null == authProfile )
 			return ;
+
+		ourLog.info("authProfile=" + authProfile);
 
 		IIdType authorizedNonLocalUserId = authProfile.getAuthorizedUserId();
 

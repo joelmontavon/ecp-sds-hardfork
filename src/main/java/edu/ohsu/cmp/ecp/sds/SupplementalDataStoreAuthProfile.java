@@ -1,5 +1,6 @@
 package edu.ohsu.cmp.ecp.sds;
 
+import edu.ohsu.cmp.ecp.util.IIdTypeUtil;
 import org.hl7.fhir.instance.model.api.IIdType;
 
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreAuth.AuthorizationProfile;
@@ -14,7 +15,15 @@ public class SupplementalDataStoreAuthProfile implements AuthorizationProfile {
 		this.targetPatientId = targetPatientId;
 	}
 
-	public static AuthorizationProfile forPatient( IIdType userAndPatientId ) {
+	@Override
+	public String toString() {
+		return "SupplementalDataStoreAuthProfile{" +
+			"authorizedUserId=" + IIdTypeUtil.toString(authorizedUserId) +
+			", targetPatientId=" + IIdTypeUtil.toString(targetPatientId) +
+			'}';
+	}
+
+	public static AuthorizationProfile forPatient(IIdType userAndPatientId ) {
 		return new SupplementalDataStoreAuthProfile( userAndPatientId, userAndPatientId ) ;
 	}
 
