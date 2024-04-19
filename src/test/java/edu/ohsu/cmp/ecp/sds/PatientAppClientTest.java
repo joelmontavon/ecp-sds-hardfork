@@ -221,44 +221,5 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		Assertions.assertNotNull( readQuestResp );
 	}
-
-
-	@Test
-	void canExpunge() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-
-		IGenericClient patientAppClient = authenticatingClient( token ) ;
-
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
-
-		List<Linkage> linkages = new TestClientSearch(patientAppClient).searchLinkagesWhereItemRefersTo( authorizedPatient.getReferenceElement() ) ;
-		assertThat( linkages, hasSize(1) ) ;
-		Linkage linkage = linkages.get(0) ;
-		Reference localPatientRef =
-			linkage.getItem().stream()
-				.filter( i -> i.getType() == Linkage.LinkageType.SOURCE )
-				.map( Linkage.LinkageItemComponent::getResource )
-				.findFirst()
-				.orElseThrow( AssertionFailedError::new )
-				;
-
-		String questId = createTestSpecificId();
-
-		QuestionnaireResponse questionnaireResponse  = new QuestionnaireResponse() ;
-		questionnaireResponse.setSubject( authorizedPatient ) ;
-		questionnaireResponse.setQuestionnaire( questId ) ;
-		IIdType questRespId = patientAppClient.create().resource(questionnaireResponse).execute().getId();
-
-		QuestionnaireResponse readQuestResp = patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespId).execute();
-		Assertions.assertNotNull( readQuestResp );
-
-//		patientAppClient
-//			.operation()
-//			.onInstance( localPatientRef.getReferenceElement() )
-//			.named( "$expunge" )
-//			.withParameter( BooleanType.class, "expungeEverything", new BooleanType(true) )
-//			;
-	}
 	
 }
