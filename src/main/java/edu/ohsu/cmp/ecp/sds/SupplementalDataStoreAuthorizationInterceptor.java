@@ -60,7 +60,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 		if ( permissions.readAndWriteSpecificPatient().isPresent() )
 			ruleBuilder = buildRuleListForPermissions( ruleBuilder, permissions.readAndWriteSpecificPatient().get() ) ;
 
-		return ruleBuilder.denyAll("everything else").build();
+		return ruleBuilder.denyAll("no access rules grant permission").build();
 	}
 
 	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAllPatients readAllPatients ) {
@@ -106,7 +106,12 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.allResources()
 			.inCompartment("Patient", localPatientId)
 			.andThen()
-			.allow("write local patient " + localPatientId)
+			.deny( "write local patient " + localPatientId )
+			.write()
+			.resourcesOfType( "Patient" )
+			.inCompartment("Patient", localPatientId)
+			.andThen()
+			.allow("write local patient " + localPatientId + " related resources")
 			.write()
 			.allResources()
 			.inCompartment("Patient", localPatientId)
@@ -136,6 +141,22 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 				.inCompartment("Patient", nonLocalPatientId)
 				.andThen()
 			;
+
+			if ( nonLocalPatientId.hasBaseUrl() ) {
+				IIdType nonLocalPatientIdWithoutBaseUrl = nonLocalPatientId.toUnqualified();
+				ruleBuilder = ruleBuilder
+					.allow("read non-local patient " + nonLocalPatientIdWithoutBaseUrl )
+					.read()
+					.allResources()
+					.inCompartment("Patient", nonLocalPatientIdWithoutBaseUrl)
+					.andThen()
+					.allow("write non-local patient " + nonLocalPatientIdWithoutBaseUrl)
+					.write()
+					.allResources()
+					.inCompartment("Patient", nonLocalPatientIdWithoutBaseUrl)
+					.andThen()
+					;
+			}
 
 			/* permit access to all sds-local linkages that link to specific patient */
 			ruleBuilder = ruleBuilder

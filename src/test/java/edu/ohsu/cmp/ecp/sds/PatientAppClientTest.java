@@ -5,8 +5,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreMatchers.identifiesResource;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreMatchers.identifiesSameResourceAs;
+
+import java.util.List;
 
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.CapabilityStatement;
@@ -17,11 +22,15 @@ import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.IdType;
+import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
+import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Type;
 import org.hl7.fhir.r4.model.UriType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
@@ -35,6 +44,12 @@ import junit.framework.AssertionFailedError;
 @ActiveProfiles( "auth-aware-test")
 public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 
+	/*
+	 * Use Case: retrieve metadata
+	 * 
+	 * Use Case: store new LOCAL Condition/Goal/Observation resources and retrieve them
+	 */
+
 	@Autowired
 	AppTestMockPrincipalRegistry mockPrincipalRegistry ;
 	
@@ -43,8 +58,20 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	
 	private static final String FOREIGN_PARTITION_NAME = "http://my.ehr.org/fhir/R4/" ;
 
+	private IIdType authorizedPatientId;
+	private IGenericClient patientAppClient ;
+
+	@BeforeEach
+	public void setupAuthorizedPatient() {
+		authorizedPatientId = new IdType( FOREIGN_PARTITION_NAME, "Patient", createTestSpecificId(), null );
+		String token = mockPrincipalRegistry.register().principal( "MyPatient", authorizedPatientId.toString() ).token() ;
+
+		patientAppClient = authenticatingClient( token ) ;
+	}
+
 	@Test
 	void canFetchOAuth2Metadata() {
+		// no authorization attached
 		IGenericClient patientAppClient = client() ;
 
 		CapabilityStatement cap = patientAppClient.capabilities().ofType( CapabilityStatement.class ).execute() ;
@@ -86,16 +113,10 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreQuestionnaireWhereSubjectIsAuthorizedPatientWithoutAdditionalSetup() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient patientAppClient = authenticatingClient( token ) ;
-		
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
 		String questId = createTestSpecificId();
 		
 		QuestionnaireResponse questionnaireResponse  = new QuestionnaireResponse() ;
-		questionnaireResponse.setSubject( authorizedPatient ) ;
+		questionnaireResponse.setSubject( new Reference( authorizedPatientId ) ) ;
 		questionnaireResponse.setQuestionnaire( questId ) ;
 		IIdType questRespId = patientAppClient.create().resource(questionnaireResponse).execute().getId();
 		
@@ -106,11 +127,6 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void cannotStoreQuestionnaireWhereSubjectIsNotAuthorizedPatient() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient patientAppClient = authenticatingClient( token ) ;
-		
 		Reference nonAuthorizedPatient = new Reference( new IdType( "Patient", createTestSpecificId() ) );
 		String questId = createTestSpecificId();
 		
@@ -123,7 +139,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 				patientAppClient.create().resource(questionnaireResponse).execute().getId();
 			} );
 		
-		assertThat( exception.getMessage(), containsString( "Access denied by rule: everything else" ) ) ;
+		assertThat( exception.getMessage(), containsString( "Access denied by rule: no access rules grant permission" ) ) ;
 	}
 
 	private Condition createHealthConcern( Reference subjectRef, String codeAsPlainText ) {
@@ -141,14 +157,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreConditionWhereSubjectIsAuthorizedPatientWithoutAdditionalSetup() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient patientAppClient = authenticatingClient( token ) ;
-		
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
-		
-		Condition condition  = createHealthConcern( authorizedPatient, "my health concern" ) ;
+		Condition condition  = createHealthConcern( new Reference( authorizedPatientId ), "my health concern" ) ;
 		
 		IIdType conditionId = patientAppClient.create().resource(condition).execute().getId();
 		
@@ -157,6 +166,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		Assertions.assertNotNull( readQuestResp );
 	}
 
+	
 	/*
 	 * Scenario: "log in as Nancy Smart (related to Timmy) and then access records for Barbara"
 	 * c.f. authorize_response_relatedperson.json
@@ -166,7 +176,6 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	@Test
 	void cannotStoreConditionWhereSubjectIsUnrelatedToAuthorizedUser() {
 		String authorizedRelatedPersonId = createTestSpecificId() ;
-		String authorizedPatientId = createTestSpecificId() ;
 		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;
 		mockPermissionRegistry
 			.person( "Patient/other-patient"  )
@@ -176,7 +185,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		IGenericClient patientAppClient = authenticatingClient( token ) ;
 		
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
+		Reference authorizedPatient = new Reference( authorizedPatientId );
 		
 		Condition condition  = createHealthConcern( authorizedPatient, "my health concern" ) ;
 		
@@ -195,7 +204,6 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	@Test
 	void canStoreConditionWhereSubjectIsRelatedToAuthorizedUser() {
 		String authorizedRelatedPersonId = createTestSpecificId() ;
-		String authorizedPatientId = createTestSpecificId() ;
 		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;
 		mockPermissionRegistry
 			.person( "Patient/" + authorizedPatientId )
@@ -205,15 +213,52 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		IGenericClient patientAppClient = authenticatingClient( token ) ;
 		
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
-		
-		Condition condition  = createHealthConcern( authorizedPatient, "my health concern" ) ;
+		Condition condition  = createHealthConcern( new Reference( authorizedPatientId ), "my health concern" ) ;
 		
 		IIdType conditionId = patientAppClient.create().resource(condition).execute().getId();
 		
 		Condition readQuestResp = patientAppClient.read().resource(Condition.class).withId(conditionId).execute();
 		
 		Assertions.assertNotNull( readQuestResp );
+	}
+
+
+	@Test
+	void canExpunge() {
+		String authorizedPatientId = createTestSpecificId() ;
+		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
+
+		IGenericClient patientAppClient = authenticatingClient( token ) ;
+
+		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
+
+		List<Linkage> linkages = new TestClientSearch(patientAppClient).searchLinkagesWhereItemRefersTo( authorizedPatient.getReferenceElement() ) ;
+		assertThat( linkages, hasSize(1) ) ;
+		Linkage linkage = linkages.get(0) ;
+		Reference localPatientRef =
+			linkage.getItem().stream()
+				.filter( i -> i.getType() == Linkage.LinkageType.SOURCE )
+				.map( Linkage.LinkageItemComponent::getResource )
+				.findFirst()
+				.orElseThrow( AssertionFailedError::new )
+				;
+
+		String questId = createTestSpecificId();
+
+		QuestionnaireResponse questionnaireResponse  = new QuestionnaireResponse() ;
+		questionnaireResponse.setSubject( authorizedPatient ) ;
+		questionnaireResponse.setQuestionnaire( questId ) ;
+		IIdType questRespId = patientAppClient.create().resource(questionnaireResponse).execute().getId();
+
+		QuestionnaireResponse readQuestResp = patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespId).execute();
+		Assertions.assertNotNull( readQuestResp );
+
+//		patientAppClient
+//			.operation()
+//			.onInstance( localPatientRef.getReferenceElement() )
+//			.named( "$expunge" )
+//			.withParameter( BooleanType.class, "expungeEverything", new BooleanType(true) )
+//			;
 	}
 	
 }

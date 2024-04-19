@@ -1,6 +1,7 @@
 package edu.ohsu.cmp.ecp.sds;
 
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Questionnaire;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
@@ -31,5 +32,22 @@ public class LocalPartitionTest extends BaseSuppplementalDataStoreTest {
 
 		Assertions.assertNotNull( readQuestResp );
 
+	}
+
+	@Test
+	void canStoreAndRetrieveConditionResourceInLocalPartition() {
+		IGenericClient client = client() ;
+		
+		Patient pat = new Patient();
+		IIdType patId = client.create().resource(pat).execute().getId();
+		
+		Condition condition = new Condition() ;
+		condition.setSubject( new Reference(patId) );
+		IIdType conditionId = client.create().resource(condition).execute().getId();
+		
+		Condition readCondition = client.read().resource(Condition.class).withId(conditionId).execute();
+		
+		Assertions.assertNotNull( readCondition );
+		
 	}
 }

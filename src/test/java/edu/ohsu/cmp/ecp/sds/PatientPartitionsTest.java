@@ -53,7 +53,7 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 					}
 				);
 		
-		assertThat( ex.getMessage(), containsString("Access denied by rule: everything else") ) ;
+		assertThat( ex.getMessage(), containsString("Access denied by rule: no access rules grant permission") ) ;
 	}
 
 	@Test
@@ -92,7 +92,7 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 				}
 			);
 		
-		assertThat( ex.getMessage(), containsString("Access denied by rule: everything else") ) ;
+		assertThat( ex.getMessage(), containsString("Access denied by rule: no access rules grant permission") ) ;
 	}
 	
 	@Test
