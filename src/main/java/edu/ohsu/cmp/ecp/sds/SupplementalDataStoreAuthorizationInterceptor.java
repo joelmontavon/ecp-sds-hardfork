@@ -73,7 +73,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.andThen()
 		;
 
-		/* permit access to all sds-local linkages that link to specific patient */
+		/* permit access to all sds-local linkages */
 		ruleBuilder = ruleBuilder
 			.allow("read linkages for any non-local patient")
 			.read()
@@ -83,6 +83,11 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			;
 
 		return ruleBuilder ;
+	}
+
+	private String filterForLinkageByItem( IIdType id ) {
+		/* omitting the resource type DOES break the Linkage search */
+		return "item=" + id.toUnqualified().toString() ;
 	}
 
 	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatients ) {
@@ -106,12 +111,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.allResources()
 			.inCompartment("Patient", localPatientId)
 			.andThen()
-			.deny( "write local patient " + localPatientId )
-			.write()
-			.resourcesOfType( "Patient" )
-			.inCompartment("Patient", localPatientId)
-			.andThen()
-			.allow("write local patient " + localPatientId + " related resources")
+			.allow("write local patient " + localPatientId)
 			.write()
 			.allResources()
 			.inCompartment("Patient", localPatientId)
@@ -123,7 +123,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 			.allow("read linkages for local patient " + localPatientId)
 			.read()
 			.resourcesOfType("Linkage")
-			.withFilter( "item=" + localPatientId.getIdPart() )
+			.withFilter( filterForLinkageByItem( localPatientId ) )
 			.andThen()
 			;
 
@@ -158,12 +158,12 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 					;
 			}
 
-			/* permit access to all sds-local linkages that link to specific patient */
+			/* permit access to all sds-foreign linkages that link to specific patient */
 			ruleBuilder = ruleBuilder
 				.allow("read linkages for non-local patient " + nonLocalPatientId)
 				.read()
 				.resourcesOfType("Linkage")
-				.withFilter( "item=" + nonLocalPatientId.getIdPart() )
+				.withFilter( filterForLinkageByItem( nonLocalPatientId ) )
 				.andThen()
 				;
 		}

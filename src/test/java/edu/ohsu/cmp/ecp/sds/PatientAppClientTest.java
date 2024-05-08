@@ -1,6 +1,8 @@
 package edu.ohsu.cmp.ecp.sds;
 
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -12,11 +14,16 @@ import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreMatchers.identifiesResou
 import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreMatchers.identifiesSameResourceAs;
 
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.CapabilityStatement;
 import org.hl7.fhir.r4.model.CapabilityStatement.CapabilityStatementRestComponent;
 import org.hl7.fhir.r4.model.CapabilityStatement.CapabilityStatementRestSecurityComponent;
+import org.hl7.fhir.r4.model.Linkage.LinkageItemComponent;
+import org.hl7.fhir.r4.model.Linkage.LinkageType;
 import org.hl7.fhir.r4.model.CodeableConcept;
 import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.Extension;
@@ -28,6 +35,7 @@ import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Type;
 import org.hl7.fhir.r4.model.UriType;
+import org.hl7.fhir.r4.model.Bundle.BundleEntryComponent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -124,6 +132,95 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		Assertions.assertNotNull( readQuestResp );
 	}
+
+	private IIdType queryLocalPatientId() {
+		List<Linkage> linkages =
+			patientAppClient.search()
+				.forResource( Linkage.class )
+				//.where( Linkage.ITEM.hasId(authorizedPatientId) )
+				.returnBundle(Bundle.class).execute()
+				.getEntry().stream()
+					.filter( BundleEntryComponent::hasResource )
+					.map( BundleEntryComponent::getResource )
+					.filter( Linkage.class::isInstance )
+					.map( Linkage.class::cast )
+					.collect( toList() )
+					;
+
+		Predicate<Linkage> linkageHasItemMatchingAuthorizedId = k -> {
+			for ( Linkage.LinkageItemComponent item : k.getItem() ) {
+				if ( item.getType() != LinkageType.ALTERNATE )
+					continue ;
+				if ( !authorizedPatientId.toUnqualified().toString().equals( item.getResource().getReference() ) )
+					continue ;
+				return true ;
+			}
+			return false ;
+		} ;
+
+		IIdType patientId =
+			linkages.stream()
+				.filter( linkageHasItemMatchingAuthorizedId )
+				.flatMap( k -> k.getItem().stream() )
+				.filter( i -> i.getType() == LinkageType.SOURCE )
+				.map( LinkageItemComponent::getResource )
+				.map( Reference::getReferenceElement )
+				.findFirst()
+				.orElseThrow( () -> new AssertionFailedError("expected a Patient source link") )
+				;
+		return patientId ;
+	}
+
+	@Test
+	void canRetrieveLinkedPatientFromLocalPartition() {
+		IIdType localPatientId = queryLocalPatientId() ;
+
+		Assertions.assertNotNull( localPatientId );
+
+		Patient patientResp = patientAppClient.read().resource(Patient.class).withId(localPatientId).execute();
+
+		Assertions.assertNotNull( patientResp );
+		Assertions.assertEquals( patientResp.getIdElement().getIdPart(), localPatientId.getIdPart() );
+
+		Set<IIdType> relatedAlternatePatientIds =
+			patientAppClient.search()
+				.forResource( Linkage.class )
+				.where( Linkage.ITEM.hasId( localPatientId) )
+				.returnBundle(Bundle.class).execute()
+				.getEntry().stream()
+					.filter( BundleEntryComponent::hasResource )
+					.map( BundleEntryComponent::getResource )
+					.filter( Linkage.class::isInstance )
+					.map( Linkage.class::cast )
+					.map( Linkage::getItem )
+					.flatMap( List::stream )
+					.filter( i -> i.getType() == LinkageType.ALTERNATE )
+					.filter( Linkage.LinkageItemComponent::hasResource )
+					.map( Linkage.LinkageItemComponent::getResource )
+					.map( Reference::getReferenceElement )
+					.collect( toSet() )
+					;
+
+		Assertions.assertEquals( relatedAlternatePatientIds.size(), 1 );
+		IIdType relatedAlternatePatientId = relatedAlternatePatientIds.iterator().next() ;
+		Assertions.assertEquals( relatedAlternatePatientId.getIdPart(), authorizedPatientId.getIdPart() );
+	}
+
+	@Test
+	void canStoreQuestionnaireWhereSubjectIsLocalPatientWithoutAdditionalSetup() {
+		IIdType localPatientId = queryLocalPatientId() ;
+		
+		String questId = createTestSpecificId();
+		
+		QuestionnaireResponse questionnaireResponse  = new QuestionnaireResponse() ;
+		questionnaireResponse.setSubject( new Reference( localPatientId ) ) ;
+		questionnaireResponse.setQuestionnaire( questId ) ;
+		IIdType questRespId = patientAppClient.create().resource(questionnaireResponse).execute().getId();
+		
+		QuestionnaireResponse readQuestResp = patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespId).execute();
+		
+		Assertions.assertNotNull( readQuestResp );
+	}
 	
 	@Test
 	void cannotStoreQuestionnaireWhereSubjectIsNotAuthorizedPatient() {
@@ -161,9 +258,26 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		IIdType conditionId = patientAppClient.create().resource(condition).execute().getId();
 		
-		Condition readQuestResp = patientAppClient.read().resource(Condition.class).withId(conditionId).execute();
+		Condition readCondition = patientAppClient.read().resource(Condition.class).withId(conditionId).execute();
 		
-		Assertions.assertNotNull( readQuestResp );
+		Assertions.assertNotNull( readCondition );
+		
+		Bundle searchConditionBundle = patientAppClient.search().forResource(Condition.class).where( Condition.SUBJECT.hasId(authorizedPatientId)).returnBundle(Bundle.class).execute();
+
+		List<Condition> searchConditions =
+			searchConditionBundle.getEntry().stream()
+				.filter( Bundle.BundleEntryComponent::hasResource )
+				.map( Bundle.BundleEntryComponent::getResource )
+				.filter( Condition.class::isInstance )
+				.map( Condition.class::cast )
+				.collect( toList() )
+				;
+		
+		Assertions.assertEquals( searchConditions.size(), 1 );
+
+		Condition searchCondition = searchConditions.iterator().next() ;
+
+		Assertions.assertEquals( searchCondition.getIdElement().getIdPart(), conditionId.getIdPart() );
 	}
 
 	

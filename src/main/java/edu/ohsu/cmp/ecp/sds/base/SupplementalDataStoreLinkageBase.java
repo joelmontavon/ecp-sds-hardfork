@@ -88,8 +88,9 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 		if (linkageResources.isEmpty()) {
 
 			IBaseResource localUser = createLocalUser(nonLocalUserId.getResourceType());
-			createLinkage( localUser.getIdElement(), nonLocalUserId, localPartitionRequest() ) ;
-			return localUser.getIdElement();
+			IIdType localUserId = localUser.getIdElement().toUnqualifiedVersionless() ;
+			createLinkage( localUserId, nonLocalUserId, localPartitionRequest() ) ;
+			return localUserId;
 
 		} else {
 			// return the local patient that is the source 

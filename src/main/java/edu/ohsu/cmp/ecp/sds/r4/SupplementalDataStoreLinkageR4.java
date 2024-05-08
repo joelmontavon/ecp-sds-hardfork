@@ -10,13 +10,18 @@ import javax.inject.Inject;
 import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Linkage;
+import org.hl7.fhir.r4.model.Linkage.LinkageItemComponent;
 import org.hl7.fhir.r4.model.Linkage.LinkageType;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Practitioner;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.RelatedPerson;
+import org.hl7.fhir.r4.model.StringType;
+import org.hl7.fhir.r4.model.Type;
+import org.hl7.fhir.r4.model.UrlType;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
@@ -76,7 +81,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 	
 	private static Predicate<Linkage.LinkageItemComponent> refersTo( IIdType ref ) {
 		Predicate<IIdType> p = sameId( ref ) ;
-		return i -> i.hasResource() && i.getResource().hasReference() && p.test( i.getResource().getReferenceElement() ) ;
+		return i -> i.hasResource() && i.getResource().hasReference() && p.test( referenceFromLinkage( i.getResource() ).getReferenceElement() );
 	}
 
 	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IQueryParameterType param ) {
@@ -144,7 +149,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 			if (res instanceof Linkage) {
 				Linkage linkage = (Linkage) res;
 				for (Linkage.LinkageItemComponent linkageItem : linkage.getItem()) {
-					if (linkageItem.getType() == LinkageType.ALTERNATE && linkageItem.hasResource() && linkageItem.getResource().hasReference() && nonLocalPatientId.equals(linkageItem.getResource().getReferenceElement())) {
+					if (linkageItem.getType() == LinkageType.ALTERNATE && linkageItem.hasResource() && linkageItem.getResource().hasReference() && nonLocalPatientId.equals( referenceFromLinkage( linkageItem.getResource() ).getReferenceElement())) {
 						linkageResources.add(res);
 						break;	// breaking to prevent re-adding res if there are multiple alternates
 					}
@@ -168,16 +173,34 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 		return linkedPatients;
 	}
 
+	private static Reference referenceFromLinkage( Reference ref ) {
+		if ( !ref.hasExtension("urn:sds:partition-name") )
+			return ref ;
+		if ( !ref.hasReferenceElement() )
+			return ref ;
+		Type extValue = ref.getExtensionByUrl("urn:sds:partition-name").getValue() ;
+		if ( !(extValue instanceof UrlType) )
+			return ref ;
+		IIdType id = new IdType( ((UrlType)extValue).getValue(), ref.getReferenceElement().getResourceType(), ref.getReferenceElement().getIdPart(), ref.getReferenceElement().getVersionIdPart() ) ;
+		return new Reference( id ) ;
+	}
+
+	private static Reference referenceForLinkage( IIdType id ) {
+		if ( id.hasBaseUrl() ) {
+			Reference ref = new Reference( id.toUnqualified() ) ;
+			ref.addExtension("urn:sds:partition-name", new UrlType( id.getBaseUrl() ) );
+			return ref ;
+		} else {
+			return new Reference(id) ;
+		}
+	}
+
 	@Override
 	protected void createLinkage( IIdType sourcePatientId, IIdType alternatePatientId, RequestDetails theRequestDetails ) {
 		Linkage linkage = new Linkage();
-		linkage.addItem().setType(LinkageType.SOURCE).setResource(new Reference(sourcePatientId));
-		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(new Reference(alternatePatientId));
-		IBundleProvider searchBefore = daoLinkageR4.search( new SearchParameterMap(), theRequestDetails ) ;
-		System.out.println( "*** createLinkage: before: " + searchBefore.size() + " linkage resources" ) ;
+		linkage.addItem().setType(LinkageType.SOURCE).setResource(referenceForLinkage(sourcePatientId));
+		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(referenceForLinkage(alternatePatientId));
 		DaoMethodOutcome outcome = daoLinkageR4.create(linkage, theRequestDetails);
-		IBundleProvider searchAfter = daoLinkageR4.search( new SearchParameterMap(), theRequestDetails ) ;
-		System.out.println( "*** createLinkage: after: " + searchAfter.size() + " linkage resources") ;
 		if ( Boolean.TRUE != outcome.getCreated() ) {
 			throw new RuntimeException( "failed to create linkage between " + sourcePatientId + " and " + alternatePatientId ) ;
 		}
@@ -192,6 +215,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				.flatMap(k -> k.getItem().stream())
 				.filter(i -> i.getType() == LinkageType.ALTERNATE)
 				.map(i -> i.getResource())
+				.map( SupplementalDataStoreLinkageR4::referenceFromLinkage )
 				.collect(java.util.stream.Collectors.toList());
 		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
@@ -205,6 +229,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				.flatMap(k -> k.getItem().stream())
 				.filter(i -> i.getType() == LinkageType.SOURCE)
 				.map(i -> i.getResource())
+				.map( SupplementalDataStoreLinkageR4::referenceFromLinkage )
 				.collect(java.util.stream.Collectors.toList());
 		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
