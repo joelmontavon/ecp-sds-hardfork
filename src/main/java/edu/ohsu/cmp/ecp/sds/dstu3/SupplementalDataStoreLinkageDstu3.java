@@ -10,6 +10,10 @@ import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.dstu3.model.RelatedPerson;
+import org.hl7.fhir.dstu3.model.StringType;
+import org.hl7.fhir.dstu3.model.BooleanType;
+import org.hl7.fhir.dstu3.model.DomainResource;
+import org.hl7.fhir.dstu3.model.Extension;
 import org.hl7.fhir.dstu3.model.Linkage;
 import org.hl7.fhir.dstu3.model.Linkage.LinkageType;
 import org.hl7.fhir.dstu3.model.Patient;
@@ -133,6 +137,51 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 	public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) {
 		RelatedPerson relatedPerson = new RelatedPerson();
 		DaoMethodOutcome createOutcome = daoRelatedPersonDstu3.create(relatedPerson, theRequestDetails );
+		return createOutcome.getResource();
+	}
+
+	@Override
+	public IIdType fullyQualifiedIdForStubUser( IBaseResource userResource ) {
+		DomainResource res = (DomainResource)userResource ;
+		IIdType id = res.getIdElement() ;
+		Extension ext = res.getExtensionByUrl(EXTENSION_URL_RESOURCE_SDS_LINKAGE_TARGET_STUB) ;
+		if ( null == ext || !ext.hasValue() || false == ext.getValue().castToBoolean(ext.getValue()).booleanValue() )
+			throw new IllegalArgumentException( String.format( "%1$s resource \"%2$s\" is not a stub user", userResource.fhirType(), id.getIdPart() ) ) ;
+		Extension ext2 = res.getExtensionByUrl(EXTENSION_URL_SDS_PARTITION_NAME) ;
+		if ( null == ext2 || !ext2.hasValue() )
+			throw new IllegalArgumentException( String.format( "%1$s resource \"%2$s\" is not a stub user", userResource.fhirType(), id.getIdPart() ) ) ;
+		String baseUrl = ext2.getValue().castToString(ext2.getValue()).getValue() ;
+		return id.withServerBase(baseUrl, id.getResourceType() ) ;
+	}
+
+	@Override
+	public IBaseResource createNonLocalStubPatient( IIdType nonLocalPatientId, RequestDetails theRequestDetails ) {
+		Patient patient = new Patient();
+		patient.setId( nonLocalPatientId ) ;
+		patient.setId( nonLocalPatientId.toUnqualifiedVersionless() ) ;
+		patient.addExtension( EXTENSION_URL_RESOURCE_SDS_LINKAGE_TARGET_STUB, new BooleanType(true) );
+		patient.addExtension( EXTENSION_URL_SDS_PARTITION_NAME, new StringType( nonLocalPatientId.getBaseUrl() ) );
+		DaoMethodOutcome createOutcome = daoPatientDstu3.update(patient, theRequestDetails);
+		return createOutcome.getResource();
+	}
+	
+	@Override
+	public IBaseResource createNonLocalStubPractitioner( IIdType nonLocalPractitionerId, RequestDetails theRequestDetails ) {
+		Practitioner practitioner = new Practitioner();
+		practitioner.setId( nonLocalPractitionerId.toUnqualifiedVersionless() ) ;
+		practitioner.addExtension( EXTENSION_URL_RESOURCE_SDS_LINKAGE_TARGET_STUB, new BooleanType(true) );
+		practitioner.addExtension( EXTENSION_URL_SDS_PARTITION_NAME, new StringType( nonLocalPractitionerId.getBaseUrl() ) );
+		DaoMethodOutcome createOutcome = daoPractitionerDstu3.update(practitioner, theRequestDetails );
+		return createOutcome.getResource();
+	}
+	
+	@Override
+	public IBaseResource createNonLocalStubRelatedPerson( IIdType nonLocalRelatedPersonId, RequestDetails theRequestDetails ) {
+		RelatedPerson relatedPerson = new RelatedPerson();
+		relatedPerson.setId( nonLocalRelatedPersonId.toUnqualifiedVersionless() ) ;
+		relatedPerson.addExtension( EXTENSION_URL_RESOURCE_SDS_LINKAGE_TARGET_STUB, new BooleanType(true) );
+		relatedPerson.addExtension( EXTENSION_URL_SDS_PARTITION_NAME, new StringType( nonLocalRelatedPersonId.getBaseUrl() ) );
+		DaoMethodOutcome createOutcome = daoRelatedPersonDstu3.update(relatedPerson, theRequestDetails );
 		return createOutcome.getResource();
 	}
 }

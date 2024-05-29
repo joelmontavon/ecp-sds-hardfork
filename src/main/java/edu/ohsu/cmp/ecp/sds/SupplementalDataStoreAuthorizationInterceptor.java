@@ -2,6 +2,7 @@ package edu.ohsu.cmp.ecp.sds;
 
 import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getPermissions;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -28,146 +29,178 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 	@Inject
 	SupplementalDataStoreAuth auth;
 
+	private static IAuthRuleBuilder ruleBuilder() {
+		return new RuleBuilder();
+	}
+	
 	@Override
 	public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
-		IAuthRuleBuilder ruleBuilder = new RuleBuilder();
+		List<IAuthRule> rules = new ArrayList<>() ;
 		
-		ruleBuilder = ruleBuilder
+		ruleBuilder()
 			.allow( "capability statement" )
 			.metadata()
-			.andThen()
+			.build()
+			.forEach( rules::add );
 			;
 
 		Permissions permissions = getPermissions(theRequestDetails);
+		buildRuleListForPermissions( permissions ).forEach( rules::add );
 
+		ruleBuilder()
+			.denyAll("no access rules grant permission")
+			.build()
+			.forEach( rules::add  )
+			;
+
+		return rules ;
+	}
+	
+	private List<IAuthRule> buildRuleListForPermissions(Permissions permissions) {
+		
 		if ( null == permissions ) {
 			/* return early, no details of the authorization are available */
-			return ruleBuilder
+			return ruleBuilder()
 				.denyAll("expected user to be authorized for patient read and/or write")
 				.build();
 		}
 
-		if ( permissions.readAllPatients().isEmpty() && permissions.readAndWriteSpecificPatient().isEmpty() ) {
-			/* return early, no details of the patient identity are available */
-			return ruleBuilder
-					.denyAll("expected user \"" + permissions.authorizedNonLocalUserId() + "\" to be authorized for patient read and/or write")
-					.build();
-		}
-		
 		if ( permissions.readAllPatients().isPresent() )
-			ruleBuilder = buildRuleListForPermissions( ruleBuilder, permissions.readAllPatients().get() ) ;
+			return buildRuleListForPermissions( permissions.readAllPatients().get() ) ;
 
 		if ( permissions.readAndWriteSpecificPatient().isPresent() )
-			ruleBuilder = buildRuleListForPermissions( ruleBuilder, permissions.readAndWriteSpecificPatient().get() ) ;
+			return buildRuleListForPermissions( permissions.readAndWriteSpecificPatient().get() ) ;
 
-		return ruleBuilder.denyAll("no access rules grant permission").build();
+		/* no details of the patient identity are available */
+		return ruleBuilder()
+			.denyAll("expected user \"" + permissions.authorizedNonLocalUserId() + "\" to be authorized for patient read and/or write")
+			.build();
 	}
 
-	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAllPatients readAllPatients ) {
+	private List<IAuthRule> buildRuleListForPermissions( Permissions.ReadAllPatients readAllPatients ) {
+		List<IAuthRule> rules = new ArrayList<>() ;
 		/* permit access to all sds-foreign records for any patient in each partition */
-		ruleBuilder = ruleBuilder
-			.allow("read any non-local patient")
+		ruleBuilder()
+			.allow( describePatientPermission( "read", false ) )
 			.read()
 			.allResources()
 			.withAnyId()
-			.andThen()
+			.build().forEach( rules::add )
 		;
 
 		/* permit access to all sds-local linkages */
-		ruleBuilder = ruleBuilder
-			.allow("read linkages for any non-local patient")
+		ruleBuilder()
+			.allow( describePatientPermission( "read linkages for", false ) )
 			.read()
 			.resourcesOfType("Linkage")
 			.withAnyId()
-			.andThen()
+			.build().forEach( rules::add )
 			;
 
-		return ruleBuilder ;
+		return rules ;
 	}
 
-	private String filterForLinkageByItem( IIdType id ) {
-		/* omitting the resource type DOES break the Linkage search */
-		return "item=" + id.toUnqualified().toString() ;
-	}
-
-	private IAuthRuleBuilder buildRuleListForPermissions( IAuthRuleBuilder ruleBuilder, Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatients ) {
-		/*
-		 * IF the request is a foreign Patient create
-		 * THEN add the new Patient id to the local patient Linkage
-		 */
-
-		/*
-		 * IF the request is a foreign Patient update
-		 * AND the Patient id is not already linked to an existing local patient
-		 * THEN add the Patient id to the local patient Linkage
-		 */
-		
-		final IIdType localPatientId = readAndWriteSpecificPatients.patientId().localUserId() ;
+	private List<IAuthRule> buildRuleListForPermissions( Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatients ) {
+		List<IAuthRule> rules = new ArrayList<>() ;
+				
+		IIdType localPatientId = readAndWriteSpecificPatients.patientId().localUserId() ;
 
 		/* permit access to all sds-local records for specific patient */
-		ruleBuilder = ruleBuilder
-			.allow("read local patient " + localPatientId)
-			.read()
-			.allResources()
-			.inCompartment("Patient", localPatientId)
-			.andThen()
-			.allow("write local patient " + localPatientId)
-			.write()
-			.allResources()
-			.inCompartment("Patient", localPatientId)
-			.andThen()
-		;
-		
+		managePatientCompartment( true, localPatientId )
+			.forEach( rules::add );
 		/* permit access to all sds-local linkages that link to specific patient */
-		ruleBuilder = ruleBuilder
-			.allow("read linkages for local patient " + localPatientId)
-			.read()
-			.resourcesOfType("Linkage")
-			.withFilter( filterForLinkageByItem( localPatientId ) )
-			.andThen()
-			;
+		manageLinkages( true, localPatientId )
+			.forEach( rules::add ) ;
 
 		/* permit access to all sds-foreign records for specific patient in each partition */
 		for (IIdType nonLocalPatientId : readAndWriteSpecificPatients.patientId().nonLocalUserIds() ) {
-			ruleBuilder = ruleBuilder
-				.allow("read non-local patient " + nonLocalPatientId)
-				.read()
-				.allResources()
-				.inCompartment("Patient", nonLocalPatientId)
-				.andThen()
-				.allow("write non-local patient " + nonLocalPatientId)
-				.write()
-				.allResources()
-				.inCompartment("Patient", nonLocalPatientId)
-				.andThen()
-			;
-
-			if ( nonLocalPatientId.hasBaseUrl() ) {
-				IIdType nonLocalPatientIdWithoutBaseUrl = nonLocalPatientId.toUnqualified();
-				ruleBuilder = ruleBuilder
-					.allow("read non-local patient " + nonLocalPatientIdWithoutBaseUrl )
-					.read()
-					.allResources()
-					.inCompartment("Patient", nonLocalPatientIdWithoutBaseUrl)
-					.andThen()
-					.allow("write non-local patient " + nonLocalPatientIdWithoutBaseUrl)
-					.write()
-					.allResources()
-					.inCompartment("Patient", nonLocalPatientIdWithoutBaseUrl)
-					.andThen()
-					;
-			}
+			managePatientCompartment( false, nonLocalPatientId )
+				.forEach( rules::add ) ;
+			if ( nonLocalPatientId.hasBaseUrl() )
+				managePatientCompartment( false, nonLocalPatientId.toUnqualifiedVersionless() )
+					.forEach( rules::add ) ;
 
 			/* permit access to all sds-foreign linkages that link to specific patient */
-			ruleBuilder = ruleBuilder
-				.allow("read linkages for non-local patient " + nonLocalPatientId)
-				.read()
-				.resourcesOfType("Linkage")
-				.withFilter( filterForLinkageByItem( nonLocalPatientId ) )
-				.andThen()
-				;
+			manageLinkages( false, nonLocalPatientId )
+				.forEach( rules::add ) ;
 		}
 
-		return ruleBuilder;
+		return rules;
 	}
+
+	private String describePatientPermission( String operation, boolean isLocal ) {
+		String patientRelatedOperationDesc =
+			String.format(
+					"%1$s any %2$s patient",
+					operation,
+					isLocal ? "local" : "non-local"
+				);
+		return patientRelatedOperationDesc ;
+	}
+
+	private String describePatientPermission( String operation, boolean isLocal, IIdType patientId ) {
+		String patientRelatedOperationDesc =
+				String.format(
+					"%1$s %2$s patient %3$s",
+					operation,
+					isLocal ? "local" : "non-local",
+					patientId
+				);
+		return patientRelatedOperationDesc ;
+	}
+
+	private List<IAuthRule> managePatientCompartment( boolean isLocal, IIdType patientId ) {
+		List<IAuthRule> rules = new ArrayList<>() ;
+
+		ruleBuilder()
+			.allow( describePatientPermission("read", isLocal, patientId) )
+			.read().allResources().inCompartment("Patient", patientId)
+			.andThen()
+			.allow( describePatientPermission("write", isLocal, patientId) )
+			.write().allResources().inCompartment("Patient", patientId)
+			.andThen()
+			.allow( describePatientPermission("delete", isLocal, patientId) )
+			.delete().allResources().inCompartment("Patient", patientId)
+			.build()
+			.forEach( rules::add )
+			;
+
+		/* rule builder tries to collapse compartment rules,
+		 *  but collapses delete + cascade-delete & expunge-delete into
+		 *  just one without regard for the cascade or expunge
+		 * so, build them using separate RuleBuilder instances
+		 */
+		ruleBuilder()
+			.allow( describePatientPermission("cascade-delete", isLocal, patientId) )
+			.delete().onCascade().allResources().inCompartment("Patient", patientId)
+			.build()
+			.forEach( rules::add )
+			;
+		ruleBuilder()
+			.allow( describePatientPermission("expunge-delete", isLocal, patientId) )
+			.delete().onExpunge().allResources().inCompartment("Patient", patientId)
+			.build()
+			.forEach( rules::add )
+			;
+		
+		return rules ;
+	}
+
+	private List<IAuthRule> manageLinkages( boolean isLocal, IIdType patientId ) {
+		/* omitting the resource type DOES break the Linkage search */
+		String filterForLinkageByItem = "item=" + patientId.toUnqualifiedVersionless().toString();
+
+		return ruleBuilder()
+			.allow( describePatientPermission("read linkages for", isLocal, patientId) )
+			.read().resourcesOfType("Linkage").withFilter( filterForLinkageByItem )
+			.andThen()
+			.allow( describePatientPermission("cascade-delete linkages for", isLocal, patientId) )
+			.delete().onCascade().resourcesOfType("Linkage").withFilter( filterForLinkageByItem )
+			.andThen()
+			.allow( describePatientPermission("expunge-delete linkages for", isLocal, patientId) )
+			.delete().onExpunge().resourcesOfType("Linkage").withFilter( filterForLinkageByItem )
+			.build()
+			;
+	}
+
 }

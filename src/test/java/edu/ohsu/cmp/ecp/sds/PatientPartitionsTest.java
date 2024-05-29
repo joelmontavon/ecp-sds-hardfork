@@ -16,6 +16,7 @@ import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.Linkage.LinkageItemComponent;
 import org.hl7.fhir.r4.model.Patient;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,13 +36,24 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	private static final String FOREIGN_PARTITION_NAME = "http://my.ehr.org/fhir/R4/" ;
 	private static final String FOREIGN_PARTITION_NAME_OTHER = "http://other.ehr.org/fhir/R4/" ;
 
+	private IIdType authorizedPatientId ;
+	private IGenericClient clientLocal ;
+	private IGenericClient client ;
+	private IGenericClient client2 ;
+	
+	@BeforeEach
+	public void setupAuthorization() {
+		authorizedPatientId = new IdType( FOREIGN_PARTITION_NAME, "Patient", createTestSpecificId(), null ) ;
+		String token = mockPrincipalRegistry.register().principal( "MyPatient", authorizedPatientId.toString() ).token() ;
+
+		clientLocal = authenticatingClient( token ) ;
+		client = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
+		client2 = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME_OTHER ) ;
+	}
+	
 	@Test
 	void cannotStoreOtherResourceInForeignPartitionBeforePatient() {
-		String authorizedPatientId = createTestSpecificId() ;
 		String otherPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient client = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
 
 		Condition cnd = initCondition( new IdType( "Patient", otherPatientId), createTestSpecificId() ) ;
 		
@@ -58,11 +70,7 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 
 	@Test
 	void canStoreOtherResourceInForeignPartitionAfterPatient() {
-		String authorizedPatientId = createTestSpecificId() ;
 		String otherPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient client = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
 		
 		Patient pat = initPatient( otherPatientId ) ;
 		Condition cnd = initCondition( new IdType( "Patient", otherPatientId), createTestSpecificId() ) ;
@@ -76,11 +84,7 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void cannotReadOtherPatientResourceInForeignPartition() {
-		String authorizedPatientId = createTestSpecificId() ;
 		String otherPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient client = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
 		
 		Patient pat = initPatient( otherPatientId ) ;
 		
@@ -97,11 +101,6 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreAndRetrieveSelfPatientResourceInForeignPartition() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient client = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
-		
 		Patient pat = initPatient( authorizedPatientId ) ;
 		IIdType patId = client.update().resource(pat).execute().getId();
 		
@@ -155,72 +154,44 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canEstablishLocalPatientBySearchingLocalPartition() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IIdType authorizedNonLocalId = new IdType( "Patient", authorizedPatientId ) ;
-		
-		IGenericClient clientLocal = authenticatingClient( token ) ;
-		
-		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo( authorizedNonLocalId ) ;
+		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo( authorizedPatientId ) ;
 		
 		assertThat( linkages.size(), greaterThanOrEqualTo(1) ) ;
 		
 		Linkage linkage = linkages.get(0) ;
 
-		requireAlternateItemReferringTo( linkage, authorizedNonLocalId ) ;
+		requireAlternateItemReferringTo( linkage, authorizedPatientId ) ;
 		requireSourceItemReferringTo( linkage ) ;
 	}
 	
 	private void establishForeignPartition( String foreignPartitionName ) {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-
-		IGenericClient clientForeign = authenticatingClientTargetingPartition( token, foreignPartitionName ) ;
-		
-		Patient pat = initPatient( authorizedPatientId ) ;
-		clientForeign.update().resource(pat).execute().getId();
+		Patient pat = initPatient( authorizedPatientId.toUnqualifiedVersionless() ) ;
+		client.update().resource(pat).execute().getId();
 	}
 	
 	@Test
 	void canEstablishLocalPatientBySearchingForeignPartition() {
 		establishForeignPartition( FOREIGN_PARTITION_NAME ) ;
 		
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
+		client.search().forResource( "Condition" ).where( Condition.SUBJECT.hasId(authorizedPatientId) ).execute();
 		
-		IIdType authorizedNonLocalId = new IdType( "Patient", authorizedPatientId ) ;
-
-		IGenericClient clientForeign = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
-
-		clientForeign.search().forResource( "Condition" ).where( Condition.SUBJECT.hasId(authorizedNonLocalId) ).execute();
-		
-		IGenericClient clientLocal = authenticatingClient( token ) ;
-		
-		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo( authorizedNonLocalId ) ;
+		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo( authorizedPatientId ) ;
 		
 		assertThat( linkages.size(), greaterThanOrEqualTo(1) ) ;
 		
 		Linkage linkage = linkages.get(0) ;
 		
-		requireAlternateItemReferringTo( linkage, authorizedNonLocalId ) ;
+		requireAlternateItemReferringTo( linkage, authorizedPatientId ) ;
 		requireSourceItemReferringTo( linkage ) ;
 	}
 	
 	@Test
 	void cannotSearchingForeignPartitionThatIsEmpty() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IIdType authorizedNonLocalId = new IdType( "Patient", authorizedPatientId ) ;
-		
-		IGenericClient clientForeign = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
-		
 		ResourceNotFoundException ex =
 			assertThrows(
 					ResourceNotFoundException.class,
 				() -> {
-					clientForeign.search().forResource( "Condition" ).where( Condition.SUBJECT.hasId(authorizedNonLocalId) ).execute();
+					client.search().forResource( "Condition" ).where( Condition.SUBJECT.hasId(authorizedPatientId) ).execute();
 				}
 			);
 		
@@ -229,15 +200,9 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canEstablishLocalPatientByStoringSelfPatientResourceInForeignPartition() {
-		String authorizedPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient clientForeign = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
-		
 		Patient pat = initPatient( authorizedPatientId ) ;
-		IIdType patId = clientForeign.update().resource(pat).execute().getId();
+		IIdType patId = client.update().resource(pat).execute().getId();
 		
-		IGenericClient clientLocal = authenticatingClient( token ) ;
 		List<Linkage> linkages = new TestClientSearch( clientLocal ).searchLinkagesWhereItemRefersTo(patId) ;
 		
 		assertThat( linkages.size(), greaterThanOrEqualTo(1) ) ;
@@ -255,20 +220,15 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreAndRetrieveSelfPatientResourcesInDisparateForeignPartitions() {
-		String authorizedPatientId = createTestSpecificId() ;
 		String otherPatientId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyPatient", "Patient/" + authorizedPatientId ).token() ;
-		
-		IGenericClient client1 = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME ) ;
-		IGenericClient client2 = authenticatingClientTargetingPartition( token, FOREIGN_PARTITION_NAME_OTHER ) ;
 		
 		Patient pat1 = initPatient( authorizedPatientId ) ;
-		IIdType patId1 = client1.update().resource(pat1).execute().getId();
+		IIdType patId1 = client.update().resource(pat1).execute().getId();
 		
 		Patient pat2 = initPatient( otherPatientId ) ;
 		IIdType patId2 = client2.update().resource(pat2).execute().getId();
 		
-		Patient readPatient1 = client1.read().resource(Patient.class).withId(patId1).execute();
+		Patient readPatient1 = client.read().resource(Patient.class).withId(patId1).execute();
 		Patient readPatient2 = client2.read().resource(Patient.class).withId(patId2).execute();
 		
 		Assertions.assertNotNull( readPatient1 );

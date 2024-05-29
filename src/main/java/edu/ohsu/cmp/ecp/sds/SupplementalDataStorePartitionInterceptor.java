@@ -17,8 +17,6 @@ import ca.uhn.fhir.interceptor.api.Hook;
 import ca.uhn.fhir.interceptor.api.Interceptor;
 import ca.uhn.fhir.interceptor.api.Pointcut;
 import ca.uhn.fhir.interceptor.model.RequestPartitionId;
-import ca.uhn.fhir.jpa.dao.data.IPartitionDao;
-import ca.uhn.fhir.jpa.entity.PartitionEntity;
 import ca.uhn.fhir.jpa.partition.IRequestPartitionHelperSvc;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
@@ -30,50 +28,19 @@ public class SupplementalDataStorePartitionInterceptor {
 	public static final String HEADER_PARTITION_NAME = "X-Partition-Name";
 
 	@Inject
+	SupplementalDataStorePartition partition;
+
+	@Inject
 	SupplementalDataStoreProperties sdsProperties;
 
 	@Inject
 	IRequestPartitionHelperSvc requestPartitionHelperSvc;
 	
-	@Inject
-	IPartitionDao daoPartition;
-
-    @Inject
-    @Named("transactionManager")
-    protected PlatformTransactionManager txManager;
-    
-    private void doInTransaction( Runnable task ) {
-    	TransactionTemplate tmpl = new TransactionTemplate(txManager);
-    	
-        tmpl.execute(new TransactionCallbackWithoutResult() {
-            @Override
-            protected void doInTransactionWithoutResult(TransactionStatus status) {
-            	task.run() ;
-            }
-        });
-    }
-    
 	@PostConstruct
 	public void establishLocalPartition() {
-		String localPartitionName = sdsProperties.getPartition().getLocalName();
-
-		/* during @PostConstruct, the dao transaction must be established */
-		doInTransaction( () -> {
-			
-			if (!daoPartition.findForName(localPartitionName).isPresent()) {
-				daoPartition.save(newLocalPartitionEntity());
-			}
-			
-		}) ;
-
+		partition.establishLocalPartition() ;
 	}
 
-	public void establishNonLocalPartition( String partitionName ) {
-		if (!daoPartition.findForName(partitionName).isPresent()) {
-			daoPartition.save(newNonLocalPartitionEntity(partitionName));
-		}
-	}
-	
 	@Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_CREATE)
 	public RequestPartitionId partitionIdentifyCreate(RequestDetails theRequestDetails) {
 		if ( !requestPartitionHelperSvc.isResourcePartitionable(theRequestDetails.getResourceName()) )
@@ -94,7 +61,7 @@ public class SupplementalDataStorePartitionInterceptor {
 				validateResourceBelongsInPartition(theRequestDetails.getResource(), partitionName);
 
 				if (!sdsProperties.getPartition().getLocalName().equals(partitionName)) {
-					establishNonLocalPartition( partitionName ) ;
+					partition.establishNonLocalPartition( partitionName ) ;
 				}
 			}
 		}
@@ -146,25 +113,4 @@ public class SupplementalDataStorePartitionInterceptor {
 		}
 	}
 
-	private int generatePartitionId(String partitionName) {
-		return partitionName.hashCode();
-	}
-
-	private PartitionEntity newLocalPartitionEntity() {
-		String localPartitionName = sdsProperties.getPartition().getLocalName();
-
-		final PartitionEntity partitionEntity = new PartitionEntity();
-		partitionEntity.setId(generatePartitionId(localPartitionName));
-		partitionEntity.setName(localPartitionName);
-		partitionEntity.setDescription("groups new resources not originating elsewhere");
-		return partitionEntity;
-	}
-
-	private PartitionEntity newNonLocalPartitionEntity(String nonLocalPartitionName) {
-		final PartitionEntity partitionEntity = new PartitionEntity();
-		partitionEntity.setId(generatePartitionId(nonLocalPartitionName));
-		partitionEntity.setName(nonLocalPartitionName);
-		partitionEntity.setDescription(String.format("groups resources originating from \"%1$s\"", nonLocalPartitionName));
-		return partitionEntity;
-	}
 }

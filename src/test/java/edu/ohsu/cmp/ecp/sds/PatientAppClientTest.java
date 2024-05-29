@@ -137,7 +137,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		List<Linkage> linkages =
 			patientAppClient.search()
 				.forResource( Linkage.class )
-				//.where( Linkage.ITEM.hasId(authorizedPatientId) )
+				.where( Linkage.ITEM.hasId( authorizedPatientId.toUnqualifiedVersionless() ) )
 				.returnBundle(Bundle.class).execute()
 				.getEntry().stream()
 					.filter( BundleEntryComponent::hasResource )
@@ -147,20 +147,8 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 					.collect( toList() )
 					;
 
-		Predicate<Linkage> linkageHasItemMatchingAuthorizedId = k -> {
-			for ( Linkage.LinkageItemComponent item : k.getItem() ) {
-				if ( item.getType() != LinkageType.ALTERNATE )
-					continue ;
-				if ( !authorizedPatientId.toUnqualified().toString().equals( item.getResource().getReference() ) )
-					continue ;
-				return true ;
-			}
-			return false ;
-		} ;
-
 		IIdType patientId =
 			linkages.stream()
-				.filter( linkageHasItemMatchingAuthorizedId )
 				.flatMap( k -> k.getItem().stream() )
 				.filter( i -> i.getType() == LinkageType.SOURCE )
 				.map( LinkageItemComponent::getResource )

@@ -36,11 +36,14 @@ public class SupplementalDataStoreLinkingInterceptor {
 	@Inject
 	SupplementalDataStoreLinkage linkage;
 
+	@Inject
+	SupplementalDataStorePartition partition;
+	
 	public static final String REQUEST_ATTR_PERMISSIONS = "SDS-AUTH-PERMISSIONS" ;
 
 	public static final class UserIdentity {
 		private final String userResourceType;
-		private final Optional<IIdType> basisNonLocalUserId;
+		private final Optional<IIdType> basisUserId;
 		private final IIdType localUserId;
 		private final Set<IIdType> nonLocalUserIds = FhirResourceComparison.idTypes().createSet() ;
 
@@ -49,21 +52,21 @@ public class SupplementalDataStoreLinkingInterceptor {
 				throw new IllegalArgumentException( "cannot form a \"" + this.userResourceType + "\" user identity with a " + id.getResourceType() + " id" ) ;
 		}
 
-		public UserIdentity( Optional<IIdType> basisNonLocalUserId, IIdType localUserId, Collection<? extends IIdType> nonLocalUserIds ) {
-			this.basisNonLocalUserId = basisNonLocalUserId;
+		public UserIdentity( Optional<IIdType> basisUserId, IIdType localUserId, Collection<? extends IIdType> nonLocalUserIds ) {
+			this.basisUserId = basisUserId;
 			this.localUserId = localUserId;
 			this.nonLocalUserIds.addAll(nonLocalUserIds) ;
 			this.userResourceType = localUserId.getResourceType();
-			basisNonLocalUserId.ifPresent( this::requireMatchingIdType );
+			basisUserId.ifPresent( this::requireMatchingIdType );
 			nonLocalUserIds.forEach( this::requireMatchingIdType );
 		}
-
+		
 		public String userResourceType() {
 			return userResourceType;
 		}
 
-		public Optional<IIdType> basisNonLocalUserId() {
-			return basisNonLocalUserId;
+		public Optional<IIdType> basisUserId() {
+			return basisUserId;
 		}
 
 		public IIdType localUserId() {
@@ -77,30 +80,60 @@ public class SupplementalDataStoreLinkingInterceptor {
 		public UserIdentity withAdditionalNonLocalUserId(IIdType additionalNonLocalUserId) {
 			Set<IIdType> expandedNonLocalUserIds = FhirResourceComparison.idTypes().createSet( nonLocalUserIds ) ;
 			expandedNonLocalUserIds.add( additionalNonLocalUserId ) ;
-			return new UserIdentity( basisNonLocalUserId, localUserId, expandedNonLocalUserIds );
+			return new UserIdentity( basisUserId, localUserId, expandedNonLocalUserIds );
+		}
+
+		private String userIdToString( IIdType userId ) {
+			String format ;
+			if ( userId.hasBaseUrl() ) {
+				format = "%3$s (%1$s)" ;
+			} else {
+				format = "%3$s" ;
+			}
+			return String.format( format, userId.getBaseUrl(), userId.getResourceType(), userId.getIdPart() ) ;
+		}
+
+		@Override
+		public String toString() {
+			String format ;
+			if ( basisUserId.isPresent() && !nonLocalUserIds.isEmpty() )
+				format = "[%1$s] %2$s\nauthorized as %3$s\na.k.a. %4$s" ;
+			else if ( basisUserId.isPresent() )
+				format = "[%1$s] %2$s\nauthorized as %3$s" ;
+			else if ( nonLocalUserIds.isEmpty() )
+				format = "[%1$s] %2$s\na.k.a. %4$s" ;
+			else
+				format = "[%1$s] %2$s" ;
+			return String.format(
+					format,
+					userResourceType,
+					localUserId,
+					basisUserId.map(this::userIdToString).orElse("-none-"),
+					nonLocalUserIds.stream().map( this::userIdToString ).collect( joining(", ", "[ ", " ]" ) )
+				);
 		}
 
 	}
 	
 	public static final class Permissions {
-		private final IIdType authorizedNonLocalUserId;
+		private final IIdType authorizedUserId;
 		private final Optional<ReadAllPatients> readAllPatients ;
 		private final Optional<ReadAndWriteSpecificPatient> readAndWriteSpecificPatient ;
 
 		public Permissions( ReadAllPatients readAllPatients ) {
 			this.readAllPatients = Optional.of(readAllPatients);
-			authorizedNonLocalUserId = readAllPatients.authorizedNonLocalUserId() ;
+			authorizedUserId = readAllPatients.authorizedUserId() ;
 			this.readAndWriteSpecificPatient = Optional.empty();
 		}
 
 		public Permissions( ReadAndWriteSpecificPatient readAndWriteSpecificPatient) {
 			this.readAllPatients = Optional.empty();
 			this.readAndWriteSpecificPatient = Optional.of( readAndWriteSpecificPatient );
-			authorizedNonLocalUserId = readAndWriteSpecificPatient.authorizedNonLocalUserId() ;
+			authorizedUserId = readAndWriteSpecificPatient.authorizedUserId() ;
 		}
 
 		public IIdType authorizedNonLocalUserId() {
-			return authorizedNonLocalUserId ;
+			return authorizedUserId ;
 		}
 
 		public Optional<ReadAllPatients> readAllPatients() {
@@ -111,33 +144,37 @@ public class SupplementalDataStoreLinkingInterceptor {
 		}
 
 		public static final class ReadAllPatients {
-			private final IIdType authorizedNonLocalUserId;
+			private final IIdType authorizedUserId;
 
-			public ReadAllPatients(IIdType authorizedNonLocalUserId) {
-				this.authorizedNonLocalUserId = authorizedNonLocalUserId;
+			public ReadAllPatients(IIdType authorizedUserId) {
+				this.authorizedUserId = authorizedUserId;
 			}
 
-			public IIdType authorizedNonLocalUserId() {
-				return authorizedNonLocalUserId ;
+			public IIdType authorizedUserId() {
+				return authorizedUserId ;
 			}
 		}
 
 		public static final class ReadAndWriteSpecificPatient {
-			private final IIdType authorizedNonLocalUserId;
+			private final IIdType authorizedUserId;
 
 			private final UserIdentity patientId;
 
-			public ReadAndWriteSpecificPatient(IIdType authorizedNonLocalUserId, UserIdentity patientId) {
-				this.authorizedNonLocalUserId = authorizedNonLocalUserId;
+			public ReadAndWriteSpecificPatient(IIdType authorizedUserId, UserIdentity patientId) {
+				this.authorizedUserId = authorizedUserId;
 				this.patientId = patientId;
 			}
 
-			public IIdType authorizedNonLocalUserId() {
-				return authorizedNonLocalUserId ;
+			public IIdType authorizedUserId() {
+				return authorizedUserId ;
 			}
 
 			public UserIdentity patientId() {
 				return patientId ;
+			}
+
+			public ReadAndWriteSpecificPatient withUpdatedPatientIdentity( UserIdentity replacementPatientId ) {
+				return new ReadAndWriteSpecificPatient( authorizedUserId, replacementPatientId ) ;
 			}
 		}
 	}
@@ -150,7 +187,7 @@ public class SupplementalDataStoreLinkingInterceptor {
 	public void identifyPermissions(RequestDetails theRequestDetails) {
 		
 		/*
-		 * identify the authorized non-local Patient
+		 * identify the authorized user
 		 * and store the ID in the RequestDetails
 		 */
 		
@@ -158,22 +195,22 @@ public class SupplementalDataStoreLinkingInterceptor {
 		if ( null == authProfile )
 			return ;
 
-		IIdType authorizedNonLocalUserId = authProfile.getAuthorizedUserId();
+		IIdType authorizedUserId = authProfile.getAuthorizedUserId();
 
 		/*
 		 * identify or create the authorized local User
 		 * and store the info in the RequestDetails
 		 */
 
-		if ( "Practitioner".equalsIgnoreCase( authorizedNonLocalUserId.getResourceType() ) ) {
+		if ( "Practitioner".equalsIgnoreCase( authorizedUserId.getResourceType() ) ) {
 			theRequestDetails.setAttribute(
 				REQUEST_ATTR_PERMISSIONS,
-				permissionsForPractitioner( authorizedNonLocalUserId )
+				permissionsForPractitioner( authorizedUserId )
 			);
 		} else {
 			theRequestDetails.setAttribute(
 				REQUEST_ATTR_PERMISSIONS,
-				permissionsForPatient( authorizedNonLocalUserId, authProfile.getTargetPatientId(), theRequestDetails )
+				permissionsForPatient( authorizedUserId, authProfile.getTargetPatientId(), theRequestDetails )
 			);
 		}
 	}
@@ -185,27 +222,27 @@ public class SupplementalDataStoreLinkingInterceptor {
 		return buildUserIdentity( localUserId, Optional.of(basisNonLocalUserId) ) ;
 	}
 
-	private UserIdentity buildUserIdentity( IIdType localUserId, Optional<IIdType> basisNonLocalUserId ) {
+	private UserIdentity buildUserIdentity( IIdType localUserId, Optional<IIdType> basisUserId ) {
 
 		Set<IIdType> nonLocalPatientIds = FhirResourceComparison.idTypes().createSet() ;
-		basisNonLocalUserId.ifPresent( nonLocalPatientIds::add ) ;
+		basisUserId.filter(partition::userIsNonLocal).ifPresent( nonLocalPatientIds::add ) ;
 
 		for ( IBaseReference nonLocalUser : linkage.patientsLinkedTo(localUserId) ) {
 			IIdType nonLocalUserId = nonLocalUser.getReferenceElement();
 			nonLocalPatientIds.add( nonLocalUserId );
 		}
 
-		return new UserIdentity(basisNonLocalUserId, localUserId, nonLocalPatientIds) ;
+		return new UserIdentity(basisUserId, localUserId, nonLocalPatientIds) ;
 	}
 
-	private Permissions permissionsForPractitioner( IIdType authorizedNonLocalUserId ) {
-		return new Permissions( new Permissions.ReadAllPatients(authorizedNonLocalUserId) ) ;
+	private Permissions permissionsForPractitioner( IIdType authorizedUserId ) {
+		return new Permissions( new Permissions.ReadAllPatients(authorizedUserId) ) ;
 	}
 
-	private Permissions permissionsForPatient( IIdType authorizedNonLocalUserId, IIdType authorizedNonLocalPatientId, RequestDetails theRequestDetails ) {
+	private Permissions permissionsForPatient( IIdType authorizedUserId, IIdType authorizedPatientId, RequestDetails theRequestDetails ) {
 
 
-		UserIdentity targetPatientId = buildUserIdentity( authorizedNonLocalPatientId );
+		UserIdentity targetPatientId = buildUserIdentity( authorizedPatientId );
 		/*
 		 * IF the request is a non-local Patient update
 		 * AND the Patient id is not already linked to an existing local patient
@@ -245,7 +282,7 @@ public class SupplementalDataStoreLinkingInterceptor {
 			}
 		}
 
-		return new Permissions( new Permissions.ReadAndWriteSpecificPatient( authorizedNonLocalUserId, targetPatientId ) ) ;
+		return new Permissions( new Permissions.ReadAndWriteSpecificPatient( authorizedUserId, targetPatientId ) ) ;
 	}
 
 	@Hook(Pointcut.STORAGE_PRESTORAGE_RESOURCE_CREATED)

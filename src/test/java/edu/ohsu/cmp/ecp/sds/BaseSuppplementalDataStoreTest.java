@@ -27,6 +27,7 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.jpa.model.entity.ModelConfig;
 import ca.uhn.fhir.jpa.starter.Application;
 import ca.uhn.fhir.jpa.starter.JpaStarterWebsocketDispatcherConfig;
+import ca.uhn.fhir.parser.IParser;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import ca.uhn.fhir.rest.client.interceptor.BearerTokenAuthInterceptor;
@@ -55,6 +56,10 @@ public abstract class BaseSuppplementalDataStoreTest {
 
 	private String ourServerBase;
 	private FhirContext ctx;
+
+	protected IParser jsonResourceParser() {
+		return this.ctx.newJsonParser() ;
+	}
 
 	@BeforeEach
 	void setUp() {
@@ -130,12 +135,16 @@ public abstract class BaseSuppplementalDataStoreTest {
 	}
 
 	protected Patient initPatient( String id ) {
+		return initPatient( new IdType( "Patient", id ) ) ;
+	}
+
+	protected Patient initPatient( IIdType id ) {
 		Calendar cal = Calendar.getInstance() ;
 		cal.set(0, 0, 0) ;
 		Date birthDate = cal.getTime() ;
 		
 		Patient pat = new Patient();
-		pat.setId( new IdType( "Patient", id ) ) ;
+		pat.setId( id ) ;
 		pat.setBirthDate( birthDate ) ;
 		
 		return pat ;
