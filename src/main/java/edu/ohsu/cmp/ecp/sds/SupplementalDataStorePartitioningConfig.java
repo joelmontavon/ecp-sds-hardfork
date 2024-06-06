@@ -36,6 +36,9 @@ public class SupplementalDataStorePartitioningConfig {
 	SupplementalDataStoreLinkingInterceptor linkingInterceptor;
 
 	@Inject
+	SupplementalDataStorePermissionsInterceptor permissionsInterceptor;
+	
+	@Inject
 	SupplementalDataStorePartitionInterceptor partitionInterceptor;
 
 	@Inject
@@ -51,6 +54,11 @@ public class SupplementalDataStorePartitioningConfig {
 	@PostConstruct
 	public void configureLinking() {
 		server.registerInterceptor(linkingInterceptor);
+	}
+	
+	@PostConstruct
+	public void configurePermissions() {
+		server.registerInterceptor(permissionsInterceptor);
 	}
 	
 	@PostConstruct

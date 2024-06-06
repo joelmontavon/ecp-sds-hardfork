@@ -11,8 +11,12 @@ public interface SupplementalDataStoreLinkage {
 	Set<? extends IBaseReference> patientsLinkedTo(IIdType sourcePatientId);
 	Set<? extends IBaseReference> patientsLinkedFrom(IIdType alternatePatientId);
 
+	boolean patientCompartmentIsClaimed(IIdType patientCompartment );
+
 	Optional<IIdType> lookupLocalUserFor(IIdType userId);
+	IIdType establishLocalUser(String userResourceType);
 	IIdType establishLocalUserFor(IIdType userId);
+	IIdType establishNonLocalUser(IIdType nonLocalUserId);
 
 	void linkNonLocalPatientToLocalPatient(IIdType localPatientId, IIdType nonLocalPatientId);
 }

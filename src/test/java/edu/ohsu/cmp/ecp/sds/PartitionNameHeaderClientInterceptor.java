@@ -16,7 +16,7 @@ class PartitionNameHeaderClientInterceptor implements IClientInterceptor {
 
 	@Override
 	public void interceptRequest(IHttpRequest theRequest) {
-		theRequest.addHeader( SupplementalDataStorePartitionInterceptor.HEADER_PARTITION_NAME, partitionName );
+		theRequest.addHeader( SupplementalDataStorePartition.HEADER_PARTITION_NAME, partitionName );
 	}
 
 	@Override

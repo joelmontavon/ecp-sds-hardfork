@@ -38,8 +38,8 @@ public class RelatedPersonAppClientTest extends BaseSuppplementalDataStoreTest {
 	void canStoreQuestionnaireWhereSubjectIsAuthorizedRelatedPerson() {
 
 		String token = createTestSpecificId() ;
-		String authorizedRelatedPersonId = createTestSpecificId() ;
-		String authorizedPatientId = createTestSpecificId() ;
+		IIdType authorizedRelatedPersonId = new IdType( "https://my.ehr.org/FHIR/R4", "Patient", createTestSpecificId(), null ) ;
+		IIdType authorizedPatientId = new IdType( "https://my.ehr.org/FHIR/R4", "Patient", createTestSpecificId(), null ) ;
 
 		Expectation[] oauth2Expectations =
 			mockServerClient
@@ -56,7 +56,7 @@ public class RelatedPersonAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		IGenericClient patientAppClient = authenticatingClient( token ) ;
 		
-		Reference authorizedPatient = new Reference( new IdType( "Patient", authorizedPatientId ) );
+		Reference authorizedPatient = new Reference( authorizedPatientId );
 		String questId = createTestSpecificId();
 		
 		QuestionnaireResponse questionnaireResponse  = new QuestionnaireResponse() ;
@@ -81,9 +81,9 @@ public class RelatedPersonAppClientTest extends BaseSuppplementalDataStoreTest {
 			;
 	}
 	
-	private HttpResponse oauth2IntrospectResponse( String relatedPersonId ) {
+	private HttpResponse oauth2IntrospectResponse( IIdType relatedPersonId ) {
 		String baseUrl = "http://localhost:" + mockServerPort + "/fhir/" ;
-		IIdType relatedPerson = new IdType( baseUrl, "RelatedPerson", relatedPersonId, null ) ;
+		IIdType relatedPerson = new IdType( baseUrl, "RelatedPerson", relatedPersonId.getIdPart(), null ) ;
 		String jsonBody =
 			String.format(
 				"{ \"active\": true, \"sub\": \"%1$s\", \"exp\": %2$d }",
@@ -115,18 +115,18 @@ public class RelatedPersonAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 	}
 	
-	private RequestDefinition relatedPersonRequest( String relatedPersonId, String token ) {
+	private RequestDefinition relatedPersonRequest( IIdType relatedPersonId, String token ) {
 		return request()
 			.withMethod( "GET" )
-			.withPath( "/fhir/RelatedPerson/" + relatedPersonId )
+			.withPath( "/fhir/RelatedPerson/" + relatedPersonId.getIdPart() )
 			.withHeader( "Authorization", "Bearer " + token )
 			;
 	}
 	
-	private HttpResponse relatedPersonResponse( String relatedPersonId, String patientId ) {
+	private HttpResponse relatedPersonResponse( IIdType relatedPersonId, IIdType patientId ) {
 		String jsonBody =
 			String.format(
-				"{ \"resourceType\": \"RelatedPerson\", \"id\": \"%2$s\", \"patient\": { \"reference\": \"Patient/%1$s\" } }",
+				"{ \"resourceType\": \"RelatedPerson\", \"id\": \"%2$s\", \"patient\": { \"reference\": \"%1$s\" } }",
 				patientId,
 				relatedPersonId
 				); 

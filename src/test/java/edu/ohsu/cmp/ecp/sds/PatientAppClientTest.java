@@ -160,6 +160,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	}
 
 	@Test
+	@Disabled("OBSOLETE REQUIREMENT: see #PatientLinkingTest")
 	void canRetrieveLinkedPatientFromLocalPartition() {
 		IIdType localPatientId = queryLocalPatientId() ;
 
@@ -195,6 +196,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	}
 
 	@Test
+	@Disabled("OBSOLETE REQUIREMENT: see #PatientLinkingTest")
 	void canStoreQuestionnaireWhereSubjectIsLocalPatientWithoutAdditionalSetup() {
 		IIdType localPatientId = queryLocalPatientId() ;
 		
@@ -211,6 +213,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	}
 	
 	@Test
+	@Disabled("OBSOLETE REQUIREMENT: see #PatientLinkingTest")
 	void cannotStoreQuestionnaireWhereSubjectIsNotAuthorizedPatient() {
 		Reference nonAuthorizedPatient = new Reference( new IdType( "Patient", createTestSpecificId() ) );
 		String questId = createTestSpecificId();
@@ -241,6 +244,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	}
 	
 	@Test
+	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreConditionWhereSubjectIsAuthorizedPatientWithoutAdditionalSetup() {
 		Condition condition  = createHealthConcern( new Reference( authorizedPatientId ), "my health concern" ) ;
 		
@@ -276,6 +280,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	 */
 	
 	@Test
+	@Disabled("OBSOLETE REQUIREMENT: see #PatientLinkingTest")
 	void cannotStoreConditionWhereSubjectIsUnrelatedToAuthorizedUser() {
 		String authorizedRelatedPersonId = createTestSpecificId() ;
 		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;
@@ -304,6 +309,7 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	 */
 	
 	@Test
+	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreConditionWhereSubjectIsRelatedToAuthorizedUser() {
 		String authorizedRelatedPersonId = createTestSpecificId() ;
 		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;

@@ -1,6 +1,7 @@
 package edu.ohsu.cmp.ecp.sds.dstu2;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.inject.Inject;
@@ -24,6 +25,7 @@ import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnDSTU2Condition;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
 import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
 
@@ -110,6 +112,16 @@ public class SupplementalDataStoreLinkageDstu2 extends SupplementalDataStoreLink
 			throw new IllegalArgumentException( String.format( "%1$s resource \"%2$s\" is not a stub user", userResource.fhirType(), id.getIdPart() ) ) ;
 		String baseUrl = ext2.getValue().castToString(ext2.getValue()).getValue() ;
 		return id.withServerBase(baseUrl, id.getResourceType() ) ;
+	}
+
+	@Override
+	protected Optional<IBaseResource> searchPatient(IIdType patientId, RequestDetails theRequestDetails) {
+		List<IBaseResource> resources =
+			daoPatientDstu2
+				.search( new SearchParameterMap( Patient.SP_RES_ID, new ReferenceParam( patientId ) ), theRequestDetails)
+				.getResources(0, 1)
+				;
+		return resources.stream().findFirst();
 	}
 
 	@Override

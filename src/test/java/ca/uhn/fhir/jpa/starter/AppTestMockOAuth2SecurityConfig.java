@@ -20,7 +20,7 @@ public class AppTestMockOAuth2SecurityConfig {
 
 	private static final String MOCK_TOKEN = "MOCK-TOKEN" ;
 	private static final String MOCK_USER_NAME = "MOCK-USERNAME" ;
-	private static final String MOCK_SUBJECT = "Patient/MOCK-SUBJECT" ;
+	private static final String MOCK_SUBJECT = "https://my.ehr.org/FHIR/R4/Patient/MOCK-SUBJECT" ;
 
 	private static final BearerTokenResolver MOCK_TOKEN_RESOLVER =
 			new MockBearerTokenResolver(MOCK_TOKEN) ;

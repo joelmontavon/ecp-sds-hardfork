@@ -1,6 +1,6 @@
 package edu.ohsu.cmp.ecp.sds;
 
-import static edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.getPermissions;
+import static edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissionsInterceptor.getPermissions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +16,6 @@ import ca.uhn.fhir.rest.server.interceptor.auth.AuthorizationInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRuleBuilder;
 import ca.uhn.fhir.rest.server.interceptor.auth.RuleBuilder;
-import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor.Permissions;
 
 @Interceptor
 @Component
@@ -73,7 +72,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 
 		/* no details of the patient identity are available */
 		return ruleBuilder()
-			.denyAll("expected user \"" + permissions.authorizedNonLocalUserId() + "\" to be authorized for patient read and/or write")
+			.denyAll("expected user \"" + permissions.authorizedUserId() + "\" to be authorized for patient read and/or write")
 			.build();
 	}
 
@@ -102,15 +101,32 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 
 	private List<IAuthRule> buildRuleListForPermissions( Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatients ) {
 		List<IAuthRule> rules = new ArrayList<>() ;
-				
-		IIdType localPatientId = readAndWriteSpecificPatients.patientId().localUserId() ;
 
-		/* permit access to all sds-local records for specific patient */
-		managePatientCompartment( true, localPatientId )
-			.forEach( rules::add );
-		/* permit access to all sds-local linkages that link to specific patient */
-		manageLinkages( true, localPatientId )
-			.forEach( rules::add ) ;
+		if ( !readAndWriteSpecificPatients.patientId().localUserId().isPresent() ) {
+
+			/* permit creating a new patient */
+			ruleBuilder()
+				.allow( describePatientPermission("create", true, null) )
+				.create().resourcesOfType("Patient").withAnyId()
+				.build().forEach( rules::add )
+				;
+
+		}
+		
+		readAndWriteSpecificPatients.patientId().localUserId().ifPresent( localPatientId -> {
+
+			/* permit access to all sds-local records for specific patient */
+			managePatientCompartment( true, localPatientId )
+				.forEach( rules::add );
+			if ( localPatientId.hasBaseUrl() ) {
+				managePatientCompartment( true, localPatientId.toUnqualifiedVersionless() )
+					.forEach( rules::add );
+			}
+			/* permit access to all sds-local linkages that link to specific patient */
+			manageLinkages( true, localPatientId.toUnqualifiedVersionless() )
+				.forEach( rules::add ) ;
+
+		});
 
 		/* permit access to all sds-foreign records for specific patient in each partition */
 		for (IIdType nonLocalPatientId : readAndWriteSpecificPatients.patientId().nonLocalUserIds() ) {
@@ -144,7 +160,7 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 					"%1$s %2$s patient %3$s",
 					operation,
 					isLocal ? "local" : "non-local",
-					patientId
+					null != patientId ? patientId : "-new-"
 				);
 		return patientRelatedOperationDesc ;
 	}

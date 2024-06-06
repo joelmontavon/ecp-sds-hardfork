@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-import ca.uhn.fhir.interceptor.model.RequestPartitionId;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
@@ -20,20 +19,10 @@ import ca.uhn.fhir.rest.server.interceptor.auth.RuleBuilder;
 @Configuration
 public class TestMockSupplementalDataStorePartitioningConfig  {
 
-	private static final String MOCK_PARTITION_NAME = "MOCK-PARTITION" ;
-	
 	private static final SupplementalDataStoreAuthorizationInterceptor MOCK_AUTH_INTERCEPTOR =
 		new TestMockSupplementalDataStoreAuthenticationInterceptor()
 		;
 	
-	private static final SupplementalDataStorePartitionInterceptor MOCK_PARTITION_INTERCEPTOR =
-			new TestMockSupplementalDataStorePartitionInterceptor(MOCK_PARTITION_NAME);
-			;
-	
-	private static final SupplementalDataStorePartitionInterceptor DEFAULT_PARTITION_INTERCEPTOR =
-			new TestDefaultPartitionSupplementalDataStorePartitionInterceptor()
-			;
-		
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;
 	
@@ -53,11 +42,16 @@ public class TestMockSupplementalDataStorePartitioningConfig  {
 	@Bean
 	@Primary
 	@ConditionalOnMissingBean(PartitionAwareTestConfig.class)
-	public SupplementalDataStorePartitionInterceptor mockPartitionInterceptor() {
-		// return MOCK_PARTITION_INTERCEPTOR ;
-		// return DEFAULT_PARTITION_INTERCEPTOR ;
+	public SupplementalDataStorePartition mockPartition() {
 		final String localPartitionName = sdsProperties.getPartition().getLocalName();
-		return new TestMockSupplementalDataStorePartitionInterceptor( localPartitionName ) ;
+		return new TestMockSupplementalDataStorePartition( localPartitionName ) ;
+	}
+	
+	@Bean
+	@Primary
+	@ConditionalOnMissingBean(PartitionAwareTestConfig.class)
+	public SupplementalDataStorePartitionInterceptor mockPartitionInterceptor() {
+		return new TestMockSupplementalDataStorePartitionInterceptor() ;
 	}
 	
 	private static class TestMockSupplementalDataStoreAuthenticationInterceptor extends SupplementalDataStoreAuthorizationInterceptor {
@@ -68,22 +62,11 @@ public class TestMockSupplementalDataStorePartitioningConfig  {
 		}
 	}
 	
-	private static class TestDefaultPartitionSupplementalDataStorePartitionInterceptor extends SupplementalDataStorePartitionInterceptor {
-		
-		public TestDefaultPartitionSupplementalDataStorePartitionInterceptor() { }
-		
-		@Override
-		public RequestPartitionId partitionIdFromRequest(RequestDetails theRequestDetails) {
-			return RequestPartitionId.defaultPartition() ;
-		}
-		
-	}
-	
-	private static class TestMockSupplementalDataStorePartitionInterceptor extends SupplementalDataStorePartitionInterceptor {
+	private static class TestMockSupplementalDataStorePartition extends SupplementalDataStorePartition {
 		
 		private final String mockPartitionName;
 
-		public TestMockSupplementalDataStorePartitionInterceptor(String mockPartitionName) {
+		public TestMockSupplementalDataStorePartition(String mockPartitionName) {
 			this.mockPartitionName = mockPartitionName;
 		}
 
@@ -92,6 +75,10 @@ public class TestMockSupplementalDataStorePartitioningConfig  {
 			return mockPartitionName ;
 		}
 
+	}
+	
+	private static class TestMockSupplementalDataStorePartitionInterceptor extends SupplementalDataStorePartitionInterceptor {
+		
 		@Override
 		public void validateResourceBelongsInPartition(IBaseResource resource, String partitionName) throws InvalidRequestException {
 			/* don't throw InvalidRequestException */

@@ -25,8 +25,6 @@ import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 @Component
 public class SupplementalDataStorePartitionInterceptor {
 
-	public static final String HEADER_PARTITION_NAME = "X-Partition-Name";
-
 	@Inject
 	SupplementalDataStorePartition partition;
 
@@ -46,7 +44,7 @@ public class SupplementalDataStorePartitionInterceptor {
 		if ( !requestPartitionHelperSvc.isResourcePartitionable(theRequestDetails.getResourceName()) )
 			return RequestPartitionId.defaultPartition() ;
 
-		RequestPartitionId partitionId = partitionIdFromRequest( theRequestDetails ) ;
+		RequestPartitionId partitionId = partition.partitionIdFromRequest( theRequestDetails ) ;
 
 		validateAndEstablishNamedPartition( partitionId, theRequestDetails ) ;
 
@@ -72,22 +70,9 @@ public class SupplementalDataStorePartitionInterceptor {
 		if ( !requestPartitionHelperSvc.isResourcePartitionable(theRequestDetails.getResourceName()) )
 			return RequestPartitionId.defaultPartition() ;
 
-		return partitionIdFromRequest( theRequestDetails ) ;
+		return partition.partitionIdFromRequest( theRequestDetails ) ;
 	}
 
-
-	public RequestPartitionId partitionIdFromRequest(RequestDetails theRequestDetails) {
-		final String partitionName = partitionNameFromRequest(theRequestDetails);
-		return RequestPartitionId.fromPartitionName(partitionName);
-	}
-
-	protected String partitionNameFromRequest(RequestDetails theRequestDetails) {
-		final String partitionNameHeaderValue = theRequestDetails.getHeader(HEADER_PARTITION_NAME);
-		if (StringUtils.isNotBlank(partitionNameHeaderValue))
-			return partitionNameHeaderValue;
-		else
-			return sdsProperties.getPartition().getLocalName();
-	}
 
 	public void validateResourceBelongsInPartition(IBaseResource resource, String partitionName) throws InvalidRequestException {
 		if (null == resource)

@@ -2,6 +2,7 @@ package edu.ohsu.cmp.ecp.sds.r4;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -30,6 +31,7 @@ import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
 import ca.uhn.fhir.model.api.IQueryParameterType;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
@@ -268,6 +270,17 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 		return id.withServerBase(baseUrl, id.getResourceType() ) ;
 	}
 	
+	@Override
+	protected Optional<IBaseResource> searchPatient(IIdType patientId, RequestDetails theRequestDetails) {
+		List<IBaseResource> resources =
+				daoPatientR4
+				.search( new SearchParameterMap( Patient.SP_RES_ID, new ReferenceParam( patientId ) ), theRequestDetails)
+				.getResources(0, 1)
+				;
+		return resources.stream().findFirst();
+	}
+
+
 	@Override
 	public IBaseResource createNonLocalStubPatient( IIdType nonLocalPatientId, RequestDetails theRequestDetails ) {
 		Patient patient = new Patient();

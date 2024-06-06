@@ -31,6 +31,8 @@ import ca.uhn.fhir.rest.client.api.IGenericClient;
 })
 public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 
+	private static final String MOCK_SERVER_BASE_URL = "https://my.ehr.org/FHIR/R4" ;
+	
 	private MockServerClient mockServerClient ;
 
 	@MockServerPort
@@ -40,7 +42,7 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 		String token = createTestSpecificId();
 		mockServerClient
 			.when( oauth2IntrospectRequest(token) )
-			.respond( oauth2IntrospectResponse( new IdType("Patient", patientId) ) )
+			.respond( oauth2IntrospectResponse( new IdType( MOCK_SERVER_BASE_URL, "Patient", patientId, null) ) )
 			;
 
 		IGenericClient patientAppClient = authenticatingClient( token ) ;

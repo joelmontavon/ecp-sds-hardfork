@@ -35,6 +35,13 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 	@Inject
 	SupplementalDataStorePartition partition;
 
+	private RequestDetails partitionRequestFromName( String partitionName ) {
+		if ( sdsProperties.getPartition().getLocalName().equals(partitionName) )
+			return localPartitionRequest() ;
+		else
+			return nonLocalPartitionRequest(partitionName) ;
+	}
+
 	private RequestDetails localPartitionRequest() {
 		SystemRequestDetails internalRequestForLocalPartition = new SystemRequestDetails();
 		internalRequestForLocalPartition.setRequestPartitionId(RequestPartitionId.fromPartitionName(sdsProperties.getPartition().getLocalName()));
@@ -135,6 +142,28 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 	}
 
 	@Override
+	public boolean patientCompartmentIsClaimed(IIdType patientId) {
+		if ( !patientId.hasBaseUrl() )
+			throw new IllegalArgumentException( "cannot check patient compartment without a partition name" ) ;
+		String partitionName = patientId.getBaseUrl() ;
+		if ( !partition.partitionExists( partitionName ) )
+			return false ;
+		Optional<IBaseResource> patient =
+			searchPatient( patientId.toUnqualifiedVersionless(), partitionRequestFromName(partitionName) )
+			;
+		return patient.isPresent() ;
+	}
+
+	protected abstract Optional<IBaseResource> searchPatient(IIdType patientId, RequestDetails theRequestDetails) ;
+	
+	@Override
+	public IIdType establishLocalUser(String userResourceType) {
+		IBaseResource localUser = createLocalUser(userResourceType);
+		IIdType localUserId = localUser.getIdElement().toUnqualifiedVersionless() ;
+		return localUserId;
+	}
+
+	@Override
 	public IIdType establishLocalUserFor(IIdType userId) {
 		if ( partition.userIsLocal(userId))
 			return userId ;
@@ -144,18 +173,22 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 		
 			IBaseResource localUser = createLocalUser(nonLocalUserId.getResourceType());
 			/*
-			 * TODO: this should be skipped IF the non-local user is being created by this request
-			 */
-			/*
 			 * TODO: this should be skipped IF the non-local user already exists
 			 */
-			IBaseResource nonLocalStubUser = createNonLocalStubUser(nonLocalUserId);
 			IIdType localUserId = localUser.getIdElement().toUnqualifiedVersionless() ;
-			IIdType newlyCreatedNonLocalUserId = fullyQualifiedIdForStubUser(nonLocalStubUser);
-			createLinkage( localUserId, newlyCreatedNonLocalUserId, localPartitionRequest() ) ;
+			createLinkage( localUserId, nonLocalUserId, localPartitionRequest() ) ;
 			return localUserId;
 
 		} ) ;
+	}
+
+	@Override
+	public IIdType establishNonLocalUser(IIdType nonLocalUserId) {
+		if ( partition.userIsLocal(nonLocalUserId))
+			throw new IllegalArgumentException("cannot establish non-local user with a local id") ;
+
+		IBaseResource nonLocalUser = createNonLocalStubUser(nonLocalUserId);
+		return fullyQualifiedIdForStubUser( nonLocalUser ) ;
 	}
 
 	@Override
@@ -191,18 +224,19 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 			throw new InvalidRequestException("cannot create local user resource: expected a Patient or Practitioner user but encountered a " + resourceType);
 	}
 	
-	abstract public IBaseResource createLocalPatient( RequestDetails theRequestDetails ) ;
 	
-	abstract public IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) ;
+	abstract protected IBaseResource createLocalPatient( RequestDetails theRequestDetails ) ;
 	
-	abstract public IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) ;
+	abstract protected IBaseResource createLocalPractitioner( RequestDetails theRequestDetails ) ;
+	
+	abstract protected IBaseResource createLocalRelatedPerson( RequestDetails theRequestDetails ) ;
 
-	abstract public IIdType fullyQualifiedIdForStubUser( IBaseResource userResource ) ;
+	abstract protected IIdType fullyQualifiedIdForStubUser( IBaseResource userResource ) ;
 	
-	abstract public IBaseResource createNonLocalStubPatient( IIdType nonLocalPatientId, RequestDetails theRequestDetails ) ;
+	abstract protected IBaseResource createNonLocalStubPatient( IIdType nonLocalPatientId, RequestDetails theRequestDetails ) ;
 	
-	abstract public IBaseResource createNonLocalStubPractitioner( IIdType nonLocalPractitionerId, RequestDetails theRequestDetails ) ;
+	abstract protected IBaseResource createNonLocalStubPractitioner( IIdType nonLocalPractitionerId, RequestDetails theRequestDetails ) ;
 	
-	abstract public IBaseResource createNonLocalStubRelatedPerson( IIdType nonLocalRelatedPersonId, RequestDetails theRequestDetails ) ;
+	abstract protected IBaseResource createNonLocalStubRelatedPerson( IIdType nonLocalRelatedPersonId, RequestDetails theRequestDetails ) ;
 	
 }
