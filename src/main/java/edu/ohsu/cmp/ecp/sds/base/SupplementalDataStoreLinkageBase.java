@@ -1,6 +1,11 @@
 package edu.ohsu.cmp.ecp.sds.base;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.maxBy;
+import static java.util.stream.Collectors.toList;
+
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -21,10 +26,13 @@ import ca.uhn.fhir.rest.api.server.SystemRequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkage;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreLinkingInterceptor;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStorePartition;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
+import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties.SdsFeatureBehavior;
 
 public abstract class SupplementalDataStoreLinkageBase implements SupplementalDataStoreLinkage {
+	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(SupplementalDataStoreLinkageBase.class);
 
 	protected static final String EXTENSION_URL_SDS_PARTITION_NAME = "urn:sds:partition-name";
 	protected static final String EXTENSION_URL_RESOURCE_SDS_LINKAGE_TARGET_STUB = "urn:sds:linkage-target-stub";
@@ -136,9 +144,43 @@ public abstract class SupplementalDataStoreLinkageBase implements SupplementalDa
 			} else if (sourceRefs.isEmpty()) {
 				throw new InvalidRequestException("cannot lookup local user resource; no local source resources found");
 			} else {
-				throw new InvalidRequestException("cannot lookup local user resource; multiple local source resources found");
+				return Optional.of( selectLocalPatientAmongMultiple( sdsProperties.getPartition().getMultipleLinkedLocalPatients(), sourceRefs ).getReferenceElement() ) ;
 			}
 		}
+	}
+
+	private IBaseReference selectLocalPatientAmongMultiple( SdsFeatureBehavior multipleLinkedPatientsBehavior, Set<? extends IBaseReference> sourceRefs ) {
+		IBaseReference selectedRef ;
+		switch ( multipleLinkedPatientsBehavior ) {
+		case FAIL:
+			throw new InvalidRequestException("cannot lookup local user resource; multiple local source resources found");
+		case WARN:
+			selectedRef = selectLocalPatientAmongMultiple( sourceRefs, ourLog::warn );
+		case IGNORE:
+		default:
+			selectedRef = selectLocalPatientAmongMultiple( sourceRefs, ourLog::debug ) ;
+		}
+		return selectedRef ;
+	}
+	
+	private IBaseReference selectLocalPatientAmongMultiple( Set<? extends IBaseReference> sourceRefs, Consumer<String> reporter ) {
+		List<? extends IBaseReference> sortedRefs = new ArrayList<>( sourceRefs ) ;
+		sortedRefs.sort( FhirResourceComparison.references().comparator().reversed() ) ;
+		IBaseReference selectedRef = sortedRefs.get( 0 );
+		
+		Set<? extends IBaseReference> ignoredRefs = FhirResourceComparison.references().createSet( sourceRefs ) ;
+		ignoredRefs.remove( selectedRef ) ;
+		
+		String msg =
+			String.format(
+				"multiple local source resources found; returning \"%1$s\"; ignoring %2$d others ( %3$s )",
+				selectedRef.getReferenceElement(),
+				ignoredRefs.size(),
+				ignoredRefs.stream().map( IBaseReference::getReferenceElement ).map( id -> "\"" + id + "\"" ).collect( joining(", ") )
+				) ;
+		reporter.accept( msg ) ;
+
+		return selectedRef ;
 	}
 
 	@Override

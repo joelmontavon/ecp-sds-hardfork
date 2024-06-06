@@ -32,6 +32,9 @@ public class SupplementalDataStoreLinkingInterceptor {
 	@Inject
 	SupplementalDataStoreResourceCreation resourceCreation;
 
+	@Inject
+	SupplementalDataStoreProperties sdsProperties;
+	
 	@Hook(Pointcut.STORAGE_PRECOMMIT_RESOURCE_CREATED)
 	public void linkNewResourceToAuthorizedUser(RequestDetails theRequestDetails, RequestPartitionId requestPartitionId) {
 		Permissions permissions = getPermissions( theRequestDetails );
@@ -189,8 +192,17 @@ public class SupplementalDataStoreLinkingInterceptor {
 			if ( !partition.userIsLocal(localPatientCompartment))
 				throw new IllegalArgumentException( "cannot identify local patient as \"" + localPatientCompartment + "\" because it is non-local" ) ;
 			this.localPatientId.ifPresent( id -> {
-				if ( 0 != FhirResourceComparison.idTypes().comparator().compare(id, localPatientCompartment) )
-					throw new IllegalArgumentException( "local patient already identified as \"" + id + "\"; cannot re-identify as \"" + localPatientCompartment + "\"" ) ;
+				if ( 0 != FhirResourceComparison.idTypes().comparator().compare(id, localPatientCompartment) ) {
+					switch ( sdsProperties.getPartition().getMultipleLinkedLocalPatients() ) {
+					case FAIL:
+						throw new IllegalArgumentException( "local patient already identified as \"" + id + "\"; cannot re-identify as \"" + localPatientCompartment + "\"" ) ;
+					case WARN:
+						ourLog.warn( "local patient already identified as \"" + id + "\"; re-identifing as \"" + localPatientCompartment + "\" will cause problems with access permissions later" ) ;
+					case IGNORE:
+						ourLog.debug( "local patient already identified as \"" + id + "\"; re-identifing as \"" + localPatientCompartment + "\" will cause problems with access permissions later" ) ;
+					default:
+					}
+				}
 			});
 			this.localPatientId = Optional.of( localPatientCompartment ) ;
 			return this ;

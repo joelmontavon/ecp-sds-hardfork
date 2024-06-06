@@ -5,6 +5,7 @@ sds:
   partition:
     local-name: SDS-LOCAL
     http-header: X-Partition-Name
+    multiple-linked-local-patients: WARN
 management:
   endpoints:
     web:

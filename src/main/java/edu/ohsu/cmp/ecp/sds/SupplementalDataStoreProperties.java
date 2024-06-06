@@ -26,10 +26,17 @@ public class SupplementalDataStoreProperties {
 		this.partition = partition;
 	}
 
+	public enum SdsFeatureBehavior {
+		FAIL,
+		WARN,
+		IGNORE
+	}
+	
 	public static class Partition {
 
 		private String localName;
 		private String httpHeaderName = "X-Partition-Name";
+		private SdsFeatureBehavior multipleLinkedLocalPatients = SdsFeatureBehavior.FAIL;
 
 		public String getLocalName() {
 			return localName;
@@ -45,6 +52,14 @@ public class SupplementalDataStoreProperties {
 
 		public void setHttpHeader(String httpHeaderName) {
 			this.httpHeaderName = httpHeaderName;
+		}
+
+		public SdsFeatureBehavior getMultipleLinkedLocalPatients() {
+			return multipleLinkedLocalPatients;
+		}
+
+		public void setMultipleLinkedLocalPatients(SdsFeatureBehavior multipleLinkedLocalPatients) {
+			this.multipleLinkedLocalPatients = multipleLinkedLocalPatients;
 		}
 		
 	}

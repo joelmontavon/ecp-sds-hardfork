@@ -2,6 +2,7 @@ sds:
   require-base-url: false
   partition:
     local-name: SDS-LOCAL
+    multiple-linked-local-patients: WARN
 spring:
   main:
     allow-circular-references: true
