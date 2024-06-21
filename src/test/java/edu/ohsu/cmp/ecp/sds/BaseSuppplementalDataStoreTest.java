@@ -92,7 +92,7 @@ public abstract class BaseSuppplementalDataStoreTest {
 		testSpecificIdBase =
 			String.format(
 				"%1$s-%2$08x",
-				testName.substring(0, Math.min(testName.length(), 16)),
+				testName.replaceAll("[^-.A-Za-z0-9]",".").substring(0, Math.min(testName.length(), 16)),
 				testNameHashCode
 			) ;
 	}

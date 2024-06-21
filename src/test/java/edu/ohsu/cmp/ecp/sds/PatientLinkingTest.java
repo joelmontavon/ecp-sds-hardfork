@@ -10,18 +10,26 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.BooleanType;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.DateTimeType;
+import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.Goal;
+import org.hl7.fhir.r4.model.HumanName;
 import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
 import org.hl7.fhir.r4.model.Reference;
+import org.hl7.fhir.r4.model.Type;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -33,6 +41,7 @@ import ca.uhn.fhir.rest.api.MethodOutcome;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.server.exceptions.ForbiddenOperationException;
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
+import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
 
 @ActiveProfiles( "auth-aware-test")
 public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
@@ -175,7 +184,77 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 		IIdType localPatientId = outcome.getId() ;
 		
 		assertCompartmentClaimed( clientLocal, localPatientId ) ;
-		assertLinkagesAbsent( localPatientId ) ;
+		assertCompartmentClaimed( clientForeign1, authorizedPatientId ) ;
+		assertLinkagesPresent( authorizedPatientId ) ;
+	}
+
+	/*
+	Scenario 1: Create Local Patient First
+	create local Patient à
+	  - creates local Patient resource
+	  - auto-creates Linkage resource
+	  - does NOT auto-create foreign Patient stub
+	  - searching for Linkage by local Patient ID works
+	  - searching for Linkage by foreign Patient ID does NOT work (this is expected, as the foreign Patient stub wasn’t created)
+	  - create foreign Patient à
+	    - creates foreign Patient resource
+	    - searching for Linkage by local Patient ID works
+	    - searching for Linkage by foreign Patient ID does NOT work (this is not expected, since both local and foreign Patient resources exist at this point)
+	 */
+	@Test
+	void scenario1_CreateLocalPatientFirst() {
+		Patient localPatient = new Patient() ;
+		IIdType localPatientId = clientLocal.create().resource( localPatient ).execute().getId();
+
+		assertCompartmentClaimed( clientLocal, localPatientId ) ;
+		Patient stubPatient = assertCompartmentClaimed( clientForeign1, authorizedPatientId ) ;
+		assertThat( stubPatient, isStub() ) ;
+
+		assertLinked( authorizedPatientId, localPatientId ) ;
+		assertLinked( localPatientId, authorizedPatientId ) ;
+
+		Patient authorizedPatient = patient( authorizedPatientId ) ;
+		authorizedPatient.addName( new HumanName().addGiven("TEST") ) ;
+		clientForeign1.update().resource( authorizedPatient ).execute();
+
+		Patient nonStubPatient = assertCompartmentClaimed( clientForeign1, authorizedPatientId ) ;
+		assertThat( nonStubPatient, not( isStub() ) ) ;
+
+		assertLinked( authorizedPatientId, localPatientId ) ;
+		assertLinked( localPatientId, authorizedPatientId ) ;
+	}
+
+	/*
+	Scenario 2: Create Foreign Patient First
+	create foreign Patient à
+	  - creates foreign Patient resource
+	  - does NOT create Linkage (I think this is expected)
+	  - does NOT create local Patient resource (I think this is also expected)
+	  - create local Patient à
+	    - creates local Patient resource
+	    - auto-creates Linkage resource
+	    - searching for Linkage by foreign Patient ID works
+	    - searching for Linkage by local Patient ID works (it’s strange to me that this search works in this scenario but not in the other)
+	*/
+	@Test
+	void scenario2_CreateForeignPatientFirst() {
+		Patient authorizedPatient = patient( authorizedPatientId ) ;
+		authorizedPatient.addName( new HumanName().addGiven("TEST") ) ;
+		clientForeign1.update().resource( authorizedPatient ).execute();
+
+		assertLinkagesAbsent( authorizedPatientId ) ;
+
+		Patient nonStubPatient = assertCompartmentClaimed( clientForeign1, authorizedPatientId ) ;
+		assertThat( nonStubPatient, not( isStub() ) ) ;
+
+		Patient localPatient = new Patient() ;
+		IIdType localPatientId = clientLocal.create().resource( localPatient ).execute().getId();
+
+		Patient nonStubLocalPatient = assertCompartmentClaimed( clientLocal, localPatientId ) ;
+		assertThat( nonStubLocalPatient, not( isStub() ) ) ;
+
+		assertLinked( authorizedPatientId, localPatientId ) ;
+		assertLinked( localPatientId, authorizedPatientId ) ;
 	}
 
 	/*
@@ -335,6 +414,32 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 	 * SDS assertions
 	 */
 
+	private Matcher<Patient> isStub() {
+		return new BaseMatcher<Patient>() {
+			@Override
+			public boolean matches(Object item) {
+				if ( null == item )
+					return false ;
+				if ( !( item instanceof Patient ) )
+					return false ;
+				Patient patient = (Patient)item ;
+				Extension ext = patient.getExtensionByUrl("urn:sds:linkage-target-stub") ;
+				if ( null == ext )
+					return false;
+				Type extValue = ext.getValue();
+				if ( !( extValue instanceof BooleanType ) )
+					return false ;
+				return true == ((BooleanType)extValue).getValue() ;
+			}
+
+			@Override
+			public void describeTo(Description description) {
+				description.appendText("is a patient with extension identifying it as a SDS stub") ;
+			}
+
+		} ;
+	}
+
 	private void assertCompartmentUnclaimedAndUnlinked( IGenericClient client, IIdType patientId ) {
 		assertCompartmentUnclaimed( client, patientId ) ;
 		assertLinkagesAbsent( patientId );
@@ -372,6 +477,50 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 		return linkages ;
 	}
 
+	private List<Linkage> assertLinked( IIdType patientId, IIdType expectedLinkedPatientId ) {
+		List<Linkage> linkages = assertLinkagesPresent( patientId ) ;
+
+		Predicate<Linkage.LinkageItemComponent> itemMatches = item -> {
+				IIdType idReferencedByItem = item.getResource().getReferenceElement();
+				return 0 == FhirResourceComparison.idTypes().comparator().compare( idReferencedByItem, expectedLinkedPatientId ) ;
+			};
+		List<Linkage> linkagesMatchingExpected =
+			linkages.stream()
+				.filter( k -> k.getItem().stream().anyMatch( itemMatches ) )
+				.collect( toList() )
+				;
+		assertThat( linkagesMatchingExpected, not( empty() )) ;
+
+		return linkagesMatchingExpected ;
+	}
+
+
+	private void validateLinkagesFor( IIdType patientId, List<Linkage> linkagesToValidate ) {
+		Set<IIdType> linkageIdsToValidate = FhirResourceComparison.idTypes().createSet()  ;
+		linkagesToValidate.stream().map( Linkage::getIdElement ).forEach( linkageIdsToValidate::add ) ;
+
+		Bundle allLinkagesBundle =
+			clientLocal.search()
+				.forResource( Linkage.class )
+				.where( Linkage.ITEM.hasId(authorizedPatientId.toUnqualifiedVersionless()) )
+				.returnBundle(Bundle.class)
+				.execute()
+				;
+		List<Linkage> allLinkages =
+			allLinkagesBundle
+				.getEntry().stream()
+					.filter( Bundle.BundleEntryComponent::hasResource )
+					.map( Bundle.BundleEntryComponent::getResource )
+					.filter( Linkage.class::isInstance )
+					.map( Linkage.class::cast )
+					.collect( toList() )
+					;
+		Set<IIdType> allLinkageIds = FhirResourceComparison.idTypes().createSet()  ;
+		allLinkages.stream().map( Linkage::getIdElement ).forEach( allLinkageIds::add ) ;
+
+		assertThat( "linkage resources different than resources found by post-filtering", linkageIdsToValidate, equalTo(allLinkageIds) ) ;
+	}
+
 	private List<Linkage> linkagesFor( IIdType patientId ) {
 		Bundle linkageBundle =
 			clientLocal.search()
@@ -390,6 +539,7 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 					.map( Linkage.class::cast )
 					.collect( toList() )
 					;
+		validateLinkagesFor( patientId, linkages ) ;
 		return linkages ;
 	}
 

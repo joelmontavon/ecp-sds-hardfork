@@ -1,5 +1,7 @@
 package edu.ohsu.cmp.ecp.sds;
 
+import static java.util.stream.Collectors.filtering;
+
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,7 +49,7 @@ public class SupplementalDataStoreResourceCreation {
 		boolean ownerIsCreatedResource() ;
 		
 		Optional<IIdType> owner() ;
-		
+
 	}
 	
 	public Optional<Details> resourceCreationInfo( RequestDetails theRequestDetails ) {
@@ -204,7 +206,14 @@ public class SupplementalDataStoreResourceCreation {
 
 		@Override
 		public boolean inherentlyClaimsCompartment(IIdType patientCompartment) {
-			return compartmentDetails.stream().anyMatch( CompartmentDetails::ownerIsCreatedResource ) ;
+			return
+				compartmentDetails.stream()
+					.filter( d -> d.owner().isPresent() )
+					.filter( d -> 0 == FhirResourceComparison.idTypes().comparator().compare( d.owner().get(), patientCompartment ) )
+					.filter( CompartmentDetails::ownerIsCreatedResource )
+					.findFirst()
+					.isPresent()
+					;
 		}
 
 		@Override

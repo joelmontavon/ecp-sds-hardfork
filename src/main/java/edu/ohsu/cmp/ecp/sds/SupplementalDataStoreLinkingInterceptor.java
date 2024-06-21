@@ -2,6 +2,7 @@ package edu.ohsu.cmp.ecp.sds;
 
 import static edu.ohsu.cmp.ecp.sds.SupplementalDataStorePermissionsInterceptor.getPermissions;
 
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
 
@@ -34,7 +35,9 @@ public class SupplementalDataStoreLinkingInterceptor {
 
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;
-	
+
+	private Comparator<IIdType> idComparator = FhirResourceComparison.idTypes().comparator();
+
 	@Hook(Pointcut.STORAGE_PRECOMMIT_RESOURCE_CREATED)
 	public void linkNewResourceToAuthorizedUser(RequestDetails theRequestDetails, RequestPartitionId requestPartitionId) {
 		Permissions permissions = getPermissions( theRequestDetails );
@@ -43,117 +46,184 @@ public class SupplementalDataStoreLinkingInterceptor {
 
 					resourceCreation.resourceCreationInfo( theRequestDetails )
 						.ifPresent( details -> {
-							establishCompartmentOwnerForNewResource( readAndWriteSpecificPatient, details ) ;
-							linkNewResourceToAuthorizedUser( readAndWriteSpecificPatient, details ) ;
+							PatientCompartmentLinkingPlan plan = buildLinkingPlan( readAndWriteSpecificPatient, details ) ;
+							PatientCompartmentLinkingContext linkingContext = initializeLinkingContext( plan, details ) ;
+							plan.linkCompartments( linkingContext ) ;
 						});
 				});
 
 	}
 
-	private void establishCompartmentOwnerForNewResource(Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatient, SupplementalDataStoreResourceCreation.Details details ) {
+	private PatientCompartmentLinkingPlan buildLinkingPlan( Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatient, SupplementalDataStoreResourceCreation.Details details ) {
 
-		/* IF a resource is created in a Patient compartment
-		 * AND that compartment does not have a Patient resource to own it
-		 * THEN create a stub patient resource in the compartment
+		PatientCompartmentLinkingPlanImpl plan = new PatientCompartmentLinkingPlanImpl( readAndWriteSpecificPatient.patientId().basisUserId() ) ;
+
+		/*
+		 * for each compartment of the created resource, require it in the plan
 		 */
-
 		for ( IIdType patientCompartment : details.compartments() ) {
-			if ( details.inherentlyClaimsCompartment( patientCompartment ) )
-				continue ;
-
-			if ( !linkage.patientCompartmentIsClaimed(patientCompartment) ) {
-				if ( partition.userIsLocal( patientCompartment) )
-					linkage.establishLocalUserFor( patientCompartment ) ;
-				else
-					linkage.establishNonLocalUser( patientCompartment ) ;
-			}
+			plan.requireCompartment( patientCompartment ) ;
 		}
+
+		return plan ;
 	}
 
-	private void linkNewResourceToAuthorizedUser( Permissions.ReadAndWriteSpecificPatient readAndWriteSpecificPatient, SupplementalDataStoreResourceCreation.Details details ) {
+	private PatientCompartmentLinkingContext initializeLinkingContext( PatientCompartmentLinkingPlan plan, SupplementalDataStoreResourceCreation.Details details ) {
 
-		/* IF a resource is created in a Patient compartment
-		 * AND that compartment is not linked to the currently targeted patient
-		 * THEN create linkages between the targeted patient and the resource
+		PatientCompartmentLinkingContext linkingContext = new PatientCompartmentLinkingContext( plan.basisCompartment() ) ;
+
+		/* 
+		 * for each compartment that is required by the plan,
+		 * if it created by this request or already exists, identify it in the context
 		 */
+		for ( IIdType patientCompartment : plan.requiredCompartments() ) {
+			if ( details.inherentlyClaimsCompartment( patientCompartment ) ) {
+				/* this request creates the compartment owner */
+				linkingContext.compartmentAlreadyExists(patientCompartment) ;
+			}
 
-		PatientCompartmentLinkingPlan plan = new PatientCompartmentLinkingPlan( readAndWriteSpecificPatient.patientId().basisUserId() ) ;
-		
+			if ( linkage.patientCompartmentIsClaimed(patientCompartment) ) {
+				/* this compartment is already claimed */
+				linkingContext.compartmentAlreadyExists(patientCompartment) ;
+			}
+		}
+
 		/*
-		 * if the local user already exists, identify it in the plan
+		 * if the local user already exists, identify it in the context
 		 */
-		linkage.lookupLocalUserFor( readAndWriteSpecificPatient.patientId().basisUserId() ).ifPresent( id -> {
-			plan.localCompartmentAlreadyExists( id ) ;
+		linkage.lookupLocalUserFor( plan.basisCompartment() ).ifPresent( id -> {
+			linkingContext.localCompartmentAlreadyExists( id ) ;
 		});
 
 		/* 
-		 * for each compartment that owns the new resource (local and non-local), identify it in the plan
+		 * for each compartment that is linked to the local patient (if any), identify it in the context
 		 */
-		for ( IIdType compartmentOwner : details.compartments() ) {
-			plan.compartmentAlreadyExists( compartmentOwner ) ;
-		}
-
-		/* 
-		 * for each compartment is linked to the local patient (if any), identify it in the plan
-		 */
-		plan.localPatientId().ifPresent( localUserId -> {
+		linkingContext.localPatientId().ifPresent( localUserId -> {
 			for ( IBaseReference nonLocalPatientRef : linkage.patientsLinkedTo(localUserId) ) {
 				IIdType nonLocalPatientId = nonLocalPatientRef.getReferenceElement() ;
-				plan.nonLocalCompartmentIsAlreadyLinked( nonLocalPatientId ) ;
+				linkingContext.nonLocalCompartmentIsAlreadyLinked( nonLocalPatientId ) ;
 			}
 		});
 
-		/* 
-		 * compartments to be linked are all the compartments identified in
-		 * the plan EXCEPT the compartments identified as already linked
-		 */
-		Set<IIdType> unlinkedCompartments = FhirResourceComparison.idTypes().createSet( plan.nonLocalCompartments() ) ;
-		unlinkedCompartments.removeAll( plan.linkedNonLocalCompartments() ) ;
+		return linkingContext ;
+	}
 
-		/* 
-		 * IF the basis compartment is unlinked
-		 * BUT it is the only unlinked compartment AND the local user does not already exist
-		 * THEN the basis compartment does not need to be linked
-		 */
-		if ( unlinkedCompartments.contains( plan.basisCompartment() )
-				&& unlinkedCompartments.size() == 1 
-				&& plan.localPatientId().isEmpty()
-				) {
-			unlinkedCompartments.remove( plan.basisCompartment() ) ;
+	private interface PatientCompartmentLinkingPlan {
+
+		IIdType basisCompartment() ;
+		Set<IIdType> requiredCompartments() ;
+
+		PatientCompartmentLinkingPlan linkCompartments( PatientCompartmentLinkingContext linkingContext ) ;
+
+	}
+
+	private class PatientCompartmentLinkingPlanImpl implements PatientCompartmentLinkingPlan {
+
+		private final IIdType basisCompartment ;
+		private Set<IIdType> requiredCompartments = FhirResourceComparison.idTypes().createSet();
+
+		public PatientCompartmentLinkingPlanImpl( IIdType basisCompartment ) {
+			if ( !partition.userIsNonLocal(basisCompartment))
+				throw new UnsupportedOperationException( "cannot identify basis compartment as \"" + basisCompartment + "\" because it is local; basis compartments that are local is not yet supported" ) ;
+			this.basisCompartment = basisCompartment ;
+			this.requiredCompartments.add( basisCompartment ) ;
 		}
 
-		/* 
-		 * IF no non-local compartments need to be linked
-		 * THEN nothing more to do
-		 */
-		if ( unlinkedCompartments.isEmpty() )
-			return ;
+		public IIdType basisCompartment() {
+			return basisCompartment ;
+		}
 
-		/* 
-		 * IF any non-local compartments need to be linked
-		 * THEN ensure the local patient exists
-		 */
-		if ( plan.localPatientId().isEmpty() ) {
+		public PatientCompartmentLinkingPlan requireCompartment( IIdType patientCompartment ) {
+			requiredCompartments.add( patientCompartment ) ;
+			return this ;
+		}
 
-			IIdType newLocalUserId = linkage.establishLocalUser( "Patient" ) ;
-			plan.localCompartmentAlreadyExists( newLocalUserId ) ;
-			unlinkedCompartments.add( plan.basisCompartment() ) ;
+		public Set<IIdType> requiredCompartments() {
+			return requiredCompartments ;
+		}
 
-			if ( !linkage.patientCompartmentIsClaimed( plan.basisCompartment() ) ) {
-				linkage.establishNonLocalUser( plan.basisCompartment() ) ;
+		private IIdType requireClaimedBasisCompartment( PatientCompartmentLinkingContext linkingContext ) {
+			/* claim it and update the context */
+			if ( linkingContext.nonLocalCompartments().contains( basisCompartment ) ) {
+				return basisCompartment ;
+			} else {
+				IIdType newlyCreatedPatientCompartment = linkage.establishNonLocalUser( basisCompartment ) ;
+				linkingContext.nonLocalCompartmentAlreadyExists( newlyCreatedPatientCompartment ) ;
+				return newlyCreatedPatientCompartment ;
+			}
+		}
+
+		private IIdType requireClaimedLocalCompartment( PatientCompartmentLinkingContext linkingContext ) {
+			/* claim it and update the context */
+			if ( linkingContext.localPatientId().isPresent() ) {
+				return linkingContext.localPatientId().get() ;
+			} else {
+				IIdType newlyCreatedPatientCompartment = linkage.establishLocalUser( basisCompartment.getResourceType() ) ;
+				linkingContext.localCompartmentAlreadyExists(newlyCreatedPatientCompartment) ;
+				return newlyCreatedPatientCompartment ;
+			}
+		}
+
+		private IIdType requireClaimedNonLocalCompartment( IIdType nonLocalCompartment, PatientCompartmentLinkingContext linkingContext ) {
+			/* claim it and update the context */
+			if ( linkingContext.nonLocalCompartments().contains( nonLocalCompartment ) ) {
+				return nonLocalCompartment ;
+			} else {
+				IIdType newlyCreatedPatientCompartment = linkage.establishNonLocalUser( nonLocalCompartment ) ;
+				linkingContext.nonLocalCompartmentAlreadyExists( newlyCreatedPatientCompartment ) ;
+				return newlyCreatedPatientCompartment ;
+			}
+		}
+
+		private void linkBasisCompartment( PatientCompartmentLinkingContext linkingContext ) {
+			/* link it and update the context */
+			// does not need linking; if a link is needed
+			//   between the basis and local user,
+			//   then #linkLocalCompartment() will do it
+			requireClaimedBasisCompartment( linkingContext ) ;
+		}
+
+		private void linkLocalCompartment( PatientCompartmentLinkingContext linkingContext ) {
+			/* link it and update the context */
+			if ( !linkingContext.linkedNonLocalCompartments().contains( basisCompartment ) ) {
+				linkage.linkNonLocalPatientToLocalPatient(
+					requireClaimedLocalCompartment( linkingContext ),
+					requireClaimedBasisCompartment( linkingContext )
+					);
+				linkingContext.basisCompartmentIsAlreadyLinked() ;
 			}
 		}
 		
-		/* 
-		 * link each compartment that needs to be linked
-		 */
-		for ( IIdType patientCompartment : unlinkedCompartments ) {
-			linkage.linkNonLocalPatientToLocalPatient( plan.localPatientId.get(), patientCompartment ) ;
+		private void linkNonLocalCompartment( IIdType nonLocalCompartment, PatientCompartmentLinkingContext linkingContext ) {
+			/* link it and update the context */
+			if ( !linkingContext.linkedNonLocalCompartments().contains( nonLocalCompartment ) ) {
+				linkage.linkNonLocalPatientToLocalPatient(
+					requireClaimedLocalCompartment( linkingContext ),
+					requireClaimedNonLocalCompartment( nonLocalCompartment, linkingContext )
+					);
+				linkingContext.basisCompartmentIsAlreadyLinked() ;
+			}
 		}
+
+		public PatientCompartmentLinkingPlanImpl linkCompartments( PatientCompartmentLinkingContext linkingContext ) {
+			for ( IIdType requiredCompartment : requiredCompartments ) {
+				if ( idsSame( requiredCompartment, basisCompartment ) ) {
+					linkBasisCompartment( linkingContext ) ;
+				} else if ( partition.userIsLocal(requiredCompartment) ) {
+					linkBasisCompartment( linkingContext ) ;
+					linkLocalCompartment( linkingContext ) ;
+				} else {
+					linkBasisCompartment( linkingContext ) ;
+					linkLocalCompartment( linkingContext ) ;
+					linkNonLocalCompartment( requiredCompartment, linkingContext );
+				}
+			}
+			return this ;
+		}
+
 	}
 
-
-	private class PatientCompartmentLinkingPlan {
+	private class PatientCompartmentLinkingContext {
 		
 		private final IIdType basisCompartment ;
 		private Optional<IIdType> localPatientId = Optional.empty();
@@ -176,23 +246,22 @@ public class SupplementalDataStoreLinkingInterceptor {
 			return linkedNonLocalCompartments ;
 		}
 		
-		public PatientCompartmentLinkingPlan( IIdType basisCompartment ) {
+		public PatientCompartmentLinkingContext( IIdType basisCompartment ) {
 			if ( !partition.userIsNonLocal(basisCompartment))
 				throw new UnsupportedOperationException( "cannot identify basis compartment as \"" + basisCompartment + "\" because it is local; basis compartments that are local is not yet supported" ) ;
 			this.basisCompartment = basisCompartment ;
-			this.nonLocalCompartments.add( basisCompartment ) ;
 		}
 
-		PatientCompartmentLinkingPlan basisCompartmentIsAlreadyLinked() {
+		PatientCompartmentLinkingContext basisCompartmentIsAlreadyLinked() {
 			this.linkedNonLocalCompartments.add( basisCompartment ) ;
 			return this ;
 		}
 		
-		PatientCompartmentLinkingPlan localCompartmentAlreadyExists( IIdType localPatientCompartment ) {
+		PatientCompartmentLinkingContext localCompartmentAlreadyExists( IIdType localPatientCompartment ) {
 			if ( !partition.userIsLocal(localPatientCompartment))
 				throw new IllegalArgumentException( "cannot identify local patient as \"" + localPatientCompartment + "\" because it is non-local" ) ;
 			this.localPatientId.ifPresent( id -> {
-				if ( 0 != FhirResourceComparison.idTypes().comparator().compare(id, localPatientCompartment) ) {
+				if ( idsDifferent(id, localPatientCompartment) ) {
 					switch ( sdsProperties.getPartition().getMultipleLinkedLocalPatients() ) {
 					case FAIL:
 						throw new IllegalArgumentException( "local patient already identified as \"" + id + "\"; cannot re-identify as \"" + localPatientCompartment + "\"" ) ;
@@ -208,26 +277,33 @@ public class SupplementalDataStoreLinkingInterceptor {
 			return this ;
 		}
 		
-		PatientCompartmentLinkingPlan nonLocalCompartmentAlreadyExists( IIdType nonLocalPatientCompartment ) {
+		PatientCompartmentLinkingContext nonLocalCompartmentAlreadyExists( IIdType nonLocalPatientCompartment ) {
 			if ( !partition.userIsNonLocal(nonLocalPatientCompartment))
 				throw new IllegalArgumentException( "cannot identify non-local compartment as \"" + nonLocalPatientCompartment + "\" because it is local" ) ;
 			nonLocalCompartments.add( nonLocalPatientCompartment ) ;
 			return this ;
 		}
 
-		PatientCompartmentLinkingPlan compartmentAlreadyExists( IIdType patientCompartment ) {
+		PatientCompartmentLinkingContext compartmentAlreadyExists( IIdType patientCompartment ) {
 			if ( partition.userIsLocal(patientCompartment) )
 				return this.localCompartmentAlreadyExists(patientCompartment) ;
 			else
 				return this.nonLocalCompartmentAlreadyExists(patientCompartment) ;
 		}
 
-		PatientCompartmentLinkingPlan nonLocalCompartmentIsAlreadyLinked( IIdType nonLocalPatientCompartment ) {
+		PatientCompartmentLinkingContext nonLocalCompartmentIsAlreadyLinked( IIdType nonLocalPatientCompartment ) {
 			if ( !nonLocalCompartments.contains( nonLocalPatientCompartment ) )
 				new IllegalArgumentException( "cannot identify non-local compartment \"" + nonLocalPatientCompartment + "\" as already linked because the local compartment has not been identified yet" ) ;
 			this.linkedNonLocalCompartments.add( basisCompartment ) ;
 			return this ;
 		}
 	}
-	
+
+	private boolean idsDifferent( IIdType a, IIdType b ) {
+		return 0 != idComparator.compare(a, b) ;
+	}
+
+	private boolean idsSame( IIdType a, IIdType b ) {
+		return 0 == idComparator.compare(a, b) ;
+	}
 }
