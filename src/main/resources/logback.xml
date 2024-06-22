@@ -9,35 +9,6 @@
 		</encoder>
 	</appender>
 
-	<timestamp key="bySecond" datePattern="yyyyMMdd'T'HHmmss"/>
-
-	<appender name="AUTH" class="ch.qos.logback.core.FileAppender">
-		<file>/Users/timvanderbilt/Documents/Development/ohsu/log/auth-${bySecond}.log</file>
-		<append>true</append>
-		<immediateFlush>true</immediateFlush>
-		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%file:%line] %msg%n</pattern>
-		</encoder>
-	</appender>
-
-	<appender name="SDS" class="ch.qos.logback.core.FileAppender">
-		<file>/Users/timvanderbilt/Documents/Development/ohsu/log/sds-${bySecond}.log</file>
-		<append>true</append>
-		<immediateFlush>true</immediateFlush>
-		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%file:%line] %msg%n</pattern>
-		</encoder>
-	</appender>
-
-	<appender name="SEARCH" class="ch.qos.logback.core.FileAppender">
-		<file>/Users/timvanderbilt/Documents/Development/ohsu/log/search-${bySecond}.log</file>
-		<append>true</append>
-		<immediateFlush>true</immediateFlush>
-		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%file:%line] %msg%n</pattern>
-		</encoder>
-	</appender>
-
 	<logger name="org.springframework.beans" level="INFO">
 		<appender-ref ref="STDOUT" />
 	</logger>
