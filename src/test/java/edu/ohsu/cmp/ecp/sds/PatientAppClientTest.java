@@ -244,7 +244,6 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	}
 	
 	@Test
-	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreConditionWhereSubjectIsAuthorizedPatientWithoutAdditionalSetup() {
 		Condition condition  = createHealthConcern( new Reference( authorizedPatientId ), "my health concern" ) ;
 		
@@ -282,11 +281,12 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	@Test
 	@Disabled("OBSOLETE REQUIREMENT: see #PatientLinkingTest")
 	void cannotStoreConditionWhereSubjectIsUnrelatedToAuthorizedUser() {
-		String authorizedRelatedPersonId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;
+		IIdType otherPatientId = new IdType( FOREIGN_PARTITION_NAME, "Patient", createTestSpecificId(), null );
+		IIdType authorizedRelatedPersonId = new IdType( "RelatedPerson", createTestSpecificId() ) ;
+		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", authorizedRelatedPersonId.toString() ).token() ;
 		mockPermissionRegistry
-			.person( "Patient/other-patient"  )
-			.permitsPerson( "RelatedPerson/" + authorizedRelatedPersonId )
+			.person( otherPatientId.toString() )
+			.permitsPerson( authorizedRelatedPersonId.toString() )
 			.toReadAndWrite()
 			;
 		
@@ -309,13 +309,12 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 	 */
 	
 	@Test
-	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreConditionWhereSubjectIsRelatedToAuthorizedUser() {
-		String authorizedRelatedPersonId = createTestSpecificId() ;
-		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", "RelatedPerson/" + authorizedRelatedPersonId ).token() ;
+		IIdType authorizedRelatedPersonId = new IdType( "RelatedPerson", createTestSpecificId() ) ;
+		String token = mockPrincipalRegistry.register().principal( "MyRelatedPerson", authorizedRelatedPersonId.toString() ).token() ;
 		mockPermissionRegistry
-			.person( "Patient/" + authorizedPatientId )
-			.permitsPerson( "RelatedPerson/" + authorizedRelatedPersonId )
+			.person( authorizedPatientId.toString() )
+			.permitsPerson( authorizedRelatedPersonId.toString() )
 			.toReadAndWrite()
 			;
 		
@@ -325,9 +324,9 @@ public class PatientAppClientTest extends BaseSuppplementalDataStoreTest {
 		
 		IIdType conditionId = patientAppClient.create().resource(condition).execute().getId();
 		
-		Condition readQuestResp = patientAppClient.read().resource(Condition.class).withId(conditionId).execute();
+		Condition readConditionResp = patientAppClient.read().resource(Condition.class).withId(conditionId).execute();
 		
-		Assertions.assertNotNull( readQuestResp );
+		Assertions.assertNotNull( readConditionResp );
 	}
 	
 }

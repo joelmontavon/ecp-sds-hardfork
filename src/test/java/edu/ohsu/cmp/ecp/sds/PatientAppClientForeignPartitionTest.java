@@ -105,7 +105,6 @@ public class PatientAppClientForeignPartitionTest extends BaseSuppplementalDataS
 	}
 
 	@Test
-	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreConditionWhereSubjectIsClaimedPatientWithoutAdditionalSetup() {
 		String subjectPatientId = createTestSpecificId() ;
 		Patient subjectPatient = new Patient() ;

@@ -51,7 +51,6 @@ public class LocalPartitionTest extends BaseSuppplementalDataStoreTest {
 	}
 
 	@Test
-	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreAndRetrieveConditionResourceInLocalPartition() {
 		Patient pat = new Patient();
 		IIdType patId = client.create().resource(pat).execute().getId();

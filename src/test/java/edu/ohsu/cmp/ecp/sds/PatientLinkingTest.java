@@ -81,7 +81,7 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 		Bundle questionnaireResponseBundle =
 			clientLocal.search()
 				.forResource( QuestionnaireResponse.class )
-				.where( QuestionnaireResponse.SUBJECT.hasId(authorizedPatientId.toUnqualifiedVersionless()) )
+				.where( QuestionnaireResponse.SUBJECT.hasId(authorizedPatientId) )
 				.returnBundle(Bundle.class)
 				.execute()
 				;
@@ -142,7 +142,7 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 		assertThrows( ForbiddenOperationException.class, () -> {
 			clientLocal.search()
 				.forResource( QuestionnaireResponse.class )
-				.where( QuestionnaireResponse.SUBJECT.hasId(otherPatientId.toUnqualifiedVersionless()) )
+				.where( QuestionnaireResponse.SUBJECT.hasId(otherPatientId) )
 				.returnBundle(Bundle.class)
 				.execute()
 				;
@@ -267,9 +267,8 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 	 * result: - permitted
 	 */
 	@Test
-	@Disabled("QuestionnaireResponse resource does not understand that the compartments can be determine by the author")
 	void canStoreLocalPatientContributedGoal() {
-		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId() ;
+		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId().toUnqualifiedVersionless() ;
 
 		Goal goal = patientContributedGoalFor( localPatientId ) ;
 		IIdType goalId = clientLocal.create().resource( goal ).execute().getId() ;
@@ -280,19 +279,18 @@ public class PatientLinkingTest extends BaseSuppplementalDataStoreTest {
 	
 	@Test
 	void canStoreLocalPatientContributedQuestionnaireResponse() {
-		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId() ;
+		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId().toUnqualifiedVersionless() ;
 		
 		QuestionnaireResponse questionnaireResponse = patientContributedQuestionnaireResponseFor( localPatientId ) ;
 		IIdType questionnaireResponseId = clientLocal.create().resource( questionnaireResponse ).execute().getId() ;
 		
 		assertThat( clientLocal.read().resource( QuestionnaireResponse.class).withId( questionnaireResponseId ).execute(), notNullValue() ) ;
-		assertThat( clientLocal.search().forResource( QuestionnaireResponse.class).where( QuestionnaireResponse.SUBJECT.hasId(localPatientId.toUnqualifiedVersionless()) ).execute(), notNullValue() ) ;
+		assertThat( clientLocal.search().forResource( QuestionnaireResponse.class).where( QuestionnaireResponse.SUBJECT.hasId(localPatientId) ).execute(), notNullValue() ) ;
 	}
 	
 	@Test
-	@Disabled("Goal resource does not understand 'where(resolve() is Patient)'")
 	void canStoreLocalPatientContributedQuestionnaireResponseAsAuthor() {
-		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId() ;
+		IIdType localPatientId = clientLocal.create().resource( new Patient() ).execute().getId().toUnqualifiedVersionless() ;
 		
 		QuestionnaireResponse questionnaireResponse = patientContributedQuestionnaireResponseAuthoredBy( localPatientId ) ;
 		IIdType questionnaireResponseId = clientLocal.create().resource( questionnaireResponse ).execute().getId() ;

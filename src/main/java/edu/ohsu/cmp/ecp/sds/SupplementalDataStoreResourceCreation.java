@@ -2,7 +2,11 @@ package edu.ohsu.cmp.ecp.sds;
 
 import static java.util.stream.Collectors.filtering;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +21,11 @@ import org.springframework.stereotype.Component;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.RuntimeResourceDefinition;
 import ca.uhn.fhir.context.RuntimeSearchParam;
+import ca.uhn.fhir.fhirpath.IFhirPath;
+import ca.uhn.fhir.jpa.model.entity.BaseResourceIndexedSearchParam;
+import ca.uhn.fhir.jpa.searchparam.extractor.ISearchParamExtractor;
+import ca.uhn.fhir.jpa.searchparam.extractor.ISearchParamExtractor.SearchParamSet;
+import ca.uhn.fhir.jpa.searchparam.extractor.PathAndRef;
 import ca.uhn.fhir.rest.api.RestSearchParameterTypeEnum;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.util.FhirTerser;
@@ -24,6 +33,11 @@ import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
 
 @Component
 public class SupplementalDataStoreResourceCreation {
+
+	@Inject
+	ISearchParamExtractor searchParamExtractor;
+
+	private final Map<RuntimeResourceDefinition,PatientCompartmentResourceDefinition> searchParamNamesForPatientCompartment = new HashMap<>() ;
 
 	@Inject
 	SupplementalDataStorePartition partition;
@@ -74,23 +88,15 @@ public class SupplementalDataStoreResourceCreation {
 		} else {
 			// a non-Patient resource may be in Patient compartments according to the spec
 
-			FhirContext fhirContext = theRequestDetails.getFhirContext() ;
-			FhirTerser terser = fhirContext.newTerser();
+			PatientCompartmentResourceDefinition patientCompartmentResourceDefinition =
+				patientCompartmentResourceDefinitionForResource( theRequestDetails.getFhirContext(), createdResource )
+				;
 
-			RuntimeResourceDefinition sourceDef = fhirContext.getResourceDefinition( createdResource );
-			for( RuntimeSearchParam runtimeSearchParam : sourceDef.getSearchParamsForCompartmentName( "Patient" ) ) {
-				if ( null == runtimeSearchParam.getProvidesMembershipInCompartments() )
+			for ( PathAndRef pathAndRef : searchParamExtractor.extractResourceLinks( createdResource, false ) ) {
+				if ( !patientCompartmentResourceDefinition.identifiesPatientCompartment( pathAndRef.getSearchParamName() ) )
 					continue ;
-				if ( !runtimeSearchParam.getProvidesMembershipInCompartments().contains( "Patient" ) )
-					continue ;
-				if ( runtimeSearchParam.getParamType() != RestSearchParameterTypeEnum.REFERENCE )
-					continue ;
-				Object searchParamValue = terser.getSingleValueOrNull(createdResource, runtimeSearchParam.getPath() ) ;
-				if ( null == searchParamValue )
-					continue ;
-				if ( !(searchParamValue instanceof IBaseReference) )
-					continue ;
-				IIdType owner = ((IBaseReference)searchParamValue).getReferenceElement() ;
+				
+				IIdType owner = pathAndRef.getRef().getReferenceElement() ;
 				if ( !"Patient".equals(owner.getResourceType() ) )
 					continue ;
 				IIdType fullyQualifiedOwner = patientCompartmentFromPatientId( owner, createdInPartitionName ) ;
@@ -105,6 +111,40 @@ public class SupplementalDataStoreResourceCreation {
 
 		Details details = new DetailsImpl( createdResource, createdInPartitionName, compartmentsOfCreatedResource );
 		return Optional.of( details ) ;
+	}
+
+	private PatientCompartmentResourceDefinition patientCompartmentResourceDefinitionForResource( FhirContext fhirContext, IBaseResource resource ) {
+		return
+			searchParamNamesForPatientCompartment.computeIfAbsent(
+				fhirContext.getResourceDefinition( resource ),
+				PatientCompartmentResourceDefinition::new
+			) ;
+	}
+
+	private class PatientCompartmentResourceDefinition {
+		private final Set<String> searchParamNamesForPatientCompartment = new HashSet<>() ;
+		private final RuntimeResourceDefinition sourceDef ;
+
+		public RuntimeResourceDefinition runtimeSourceDefinition() {
+			return sourceDef ;
+		}
+
+		public PatientCompartmentResourceDefinition( RuntimeResourceDefinition sourceDef ) {
+			this.sourceDef = sourceDef ;
+			for( RuntimeSearchParam runtimeSearchParam : sourceDef.getSearchParamsForCompartmentName( "Patient" ) ) {
+				if ( null == runtimeSearchParam.getProvidesMembershipInCompartments() )
+					continue ;
+				if ( !runtimeSearchParam.getProvidesMembershipInCompartments().contains( "Patient" ) )
+					continue ;
+				if ( runtimeSearchParam.getParamType() != RestSearchParameterTypeEnum.REFERENCE )
+					continue ;
+				searchParamNamesForPatientCompartment.add( runtimeSearchParam.getName() ) ;
+			}
+		}
+
+		public boolean identifiesPatientCompartment( String searchParamName ) {
+			return searchParamNamesForPatientCompartment.contains( searchParamName ) ;
+		}
 	}
 
 	private static boolean isResourceWrite( RequestDetails theRequestDetails ) {

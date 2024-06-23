@@ -72,7 +72,6 @@ public class PatientPartitionsTest extends BaseSuppplementalDataStoreTest {
 	}
 
 	@Test
-	@Disabled("Goal resource does not understand 'where(resolve() is Patient)'")
 	void canStoreOtherResourceInForeignPartitionAfterPatient() {
 		String otherPatientId = createTestSpecificId() ;
 		

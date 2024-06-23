@@ -84,7 +84,6 @@ public class ForeignPartitionTest extends BaseSuppplementalDataStoreTest {
 	}
 
 	@Test
-	@Disabled("Condition resource does not understand 'where(resolve() is Patient)'")
 	void canStoreAndRetrieveConditionResourceInForeignPartition() {
 		IGenericClient client = clientTargetingPartition( FOREIGN_PARTITION_NAME );
 		
