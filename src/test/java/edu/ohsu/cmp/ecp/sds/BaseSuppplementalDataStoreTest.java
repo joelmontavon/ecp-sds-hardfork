@@ -24,7 +24,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 
 import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.jpa.model.entity.ModelConfig;
+import ca.uhn.fhir.jpa.model.entity.StorageSettings;
 import ca.uhn.fhir.jpa.starter.Application;
 import ca.uhn.fhir.jpa.starter.JpaStarterWebsocketDispatcherConfig;
 import ca.uhn.fhir.parser.IParser;
@@ -52,7 +52,7 @@ public abstract class BaseSuppplementalDataStoreTest {
 	private int port;
 
 	@Autowired
-	private ModelConfig myModelConfig;
+	private StorageSettings myStorageSettings;
 
 	private String ourServerBase;
 	private FhirContext ctx;
@@ -68,9 +68,9 @@ public abstract class BaseSuppplementalDataStoreTest {
 		ctx.getRestfulClientFactory().setSocketTimeout(1200 * 1000);
 		ourServerBase = "http://localhost:" + port + "/fhir/";
 
-		Set<String> baseUrls = new HashSet<>( myModelConfig.getTreatBaseUrlsAsLocal() ) ;
+		Set<String> baseUrls = new HashSet<>( myStorageSettings.getTreatBaseUrlsAsLocal() ) ;
 		baseUrls.add( ourServerBase ) ;
-		myModelConfig.setTreatBaseUrlsAsLocal( baseUrls ) ;
+		myStorageSettings.setTreatBaseUrlsAsLocal( baseUrls ) ;
 	}
 
 	protected String fhirServerlBase() {
