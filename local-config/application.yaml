@@ -17,6 +17,7 @@ spring:
     oauth2:
       resourceserver:
         opaque-token:
+#         introspection-uri: http://localhost:8181/introspect
           introspection-uri: https://epicmobile.ohsu.edu/FHIRDEV/oauth2/introspect
   flyway:
     enabled: false
