@@ -1,6 +1,6 @@
 # eCare Plan - Supplemental Data Store (ecp-sds)
 
-This project is hard-forked from the [HAPI FHIR JPA Server Starter Project v6.4.0](https://github.com/hapifhir/hapi-fhir-jpaserver-starter/tree/v6.4.0).
+This project is hard-forked from the [HAPI FHIR JPA Server Starter Project v6.10.1](https://github.com/hapifhir/hapi-fhir-jpaserver-starter/tree/image/v6.10.1).
 
 The following documentation is the same as what can be found for the JPA Server Starter project README.md, with modifications applied as required to build for the ecp-sds.
 
