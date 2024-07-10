@@ -1,6 +1,8 @@
 sds:
+  require-base-url: false
   partition:
     local-name: SDS-LOCAL
+    multiple-linked-local-patients: WARN
 spring:
   main:
     allow-circular-references: true
@@ -9,13 +11,7 @@ spring:
     oauth2:
       resourceserver:
         opaque-token:
-          introspection-uri: https://my-foo-ehr.org/oauth2/introspect
-          introspection-client-id: fooClient
-          introspection-client-secret: fooClientSecret
-        opaque:
-          introspection-uri: https://my-bar-ehr.org/oauth2/introspect
-          introspection-client-id: barClient
-          introspection-client-secret: barClientSecret
+          introspection-uri: http://my.ehr.org/oauth2/introspect
   flyway:
     enabled: false
     check-location: false
@@ -86,17 +82,17 @@ hapi:
     #    supported_resource_types:
     #      - Patient
     #      - Observation
-    #    allow_cascading_deletes: true
+    allow_cascading_deletes: true
     #    allow_contains_searches: true
-    #    allow_external_references: true
-    #    allow_multiple_delete: true
+    allow_external_references: true
+    allow_multiple_delete: true
     #    allow_override_default_search_params: true
     #    auto_create_placeholder_reference_targets: false
     #    cr_enabled: true
     #    default_encoding: JSON
     #    default_pretty_print: true
     #    default_page_size: 20
-    #    delete_expunge_enabled: true
+    delete_expunge_enabled: true
     #    enable_repository_validating_interceptor: false
     #    enable_index_missing_fields: false
     #    enable_index_of_type: true
@@ -106,12 +102,13 @@ hapi:
     advanced_lucene_indexing: false
     #    enforce_referential_integrity_on_delete: false
     # This is an experimental feature, and does not fully support _total and other FHIR features.
-    #    enforce_referential_integrity_on_delete: false
-    #    enforce_referential_integrity_on_write: false
+    enforce_referential_integrity_on_delete: true
+    enforce_referential_integrity_on_write: false
     #    etag_support_enabled: true
-    #    expunge_enabled: true
-    #    daoconfig_client_id_strategy: null
-    #    client_id_strategy: ALPHANUMERIC
+    expunge_enabled: true
+    daoconfig_client_id_strategy: ANY
+    daoconfig_server_id_strategy: UUID
+    client_id_strategy: ANY # support client-supplied IDs
     #    fhirpath_interceptor_enabled: false
     #    filter_search_enabled: true
     #    graphql_enabled: true

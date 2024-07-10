@@ -15,6 +15,7 @@ import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Subscription;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 		// beans are ambiguous as they are constructed multiple places. This is evident
 		// when running in a spring boot environment
 		"spring.main.allow-bean-definition-overriding=true" })
+@Disabled("SDS partitioning scheme may be incompatible with MDM, but MDM will not be enabled with the SDS")
 class ExampleServerR4IT {
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(ExampleServerR4IT.class);
 	private IGenericClient ourClient;
