@@ -8,15 +8,17 @@ import ca.uhn.fhir.rest.client.api.IHttpResponse;
 
 class PartitionNameHeaderClientInterceptor implements IClientInterceptor {
 
+	private final String httpHeader;
 	private final String partitionName;
 
-	public PartitionNameHeaderClientInterceptor(String partitionName) {
+	public PartitionNameHeaderClientInterceptor(String httpHeader, String partitionName) {
+		this.httpHeader = httpHeader ;
 		this.partitionName = partitionName;
 	}
 
 	@Override
 	public void interceptRequest(IHttpRequest theRequest) {
-		theRequest.addHeader( SupplementalDataStorePartition.HEADER_PARTITION_NAME, partitionName );
+		theRequest.addHeader( httpHeader, partitionName );
 	}
 
 	@Override
