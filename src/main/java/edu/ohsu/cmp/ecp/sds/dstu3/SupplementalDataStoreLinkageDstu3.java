@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -11,10 +12,12 @@ import org.hl7.fhir.instance.model.api.IBaseReference;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.dstu3.model.RelatedPerson;
+import org.hl7.fhir.dstu3.model.Type;
 import org.hl7.fhir.dstu3.model.StringType;
 import org.hl7.fhir.dstu3.model.BooleanType;
 import org.hl7.fhir.dstu3.model.DomainResource;
 import org.hl7.fhir.dstu3.model.Extension;
+import org.hl7.fhir.dstu3.model.IdType;
 import org.hl7.fhir.dstu3.model.Linkage;
 import org.hl7.fhir.dstu3.model.Linkage.LinkageType;
 import org.hl7.fhir.dstu3.model.Patient;
@@ -27,11 +30,13 @@ import ca.uhn.fhir.jpa.api.dao.IFhirResourceDao;
 import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnDSTU3Condition;
+import ca.uhn.fhir.model.api.IQueryParameterType;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
 import edu.ohsu.cmp.ecp.sds.base.FhirResourceComparison;
 import edu.ohsu.cmp.ecp.sds.base.SupplementalDataStoreLinkageBase;
+import edu.ohsu.cmp.ecp.sds.r4.SupplementalDataStoreLinkageR4;
 
 @Component
 @Conditional(OnDSTU3Condition.class)
@@ -64,8 +69,9 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 			if (res instanceof Linkage) {
 				Linkage linkage = (Linkage) res;
 				for (Linkage.LinkageItemComponent linkageItem : linkage.getItem()) {
-					if (linkageItem.getType() == LinkageType.ALTERNATE && linkageItem.hasResource() && linkageItem.getResource().hasReference() && nonLocalPatientId.equals(linkageItem.getResource().getReferenceElement())) {
+					if (linkageItem.getType() == LinkageType.ALTERNATE && linkageItem.hasResource() && linkageItem.getResource().hasReference() && nonLocalPatientId.equals( referenceFromLinkage( linkageItem.getResource() ).getReferenceElement())) {
 						linkageResources.add(res);
+						break;	// breaking to prevent re-adding res if there are multiple alternates
 					}
 				}
 			}
@@ -87,12 +93,37 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 		return linkedPatients;
 	}
 
+	private static Reference referenceFromLinkage( Reference ref ) {
+		if ( !ref.hasExtension(EXTENSION_URL_SDS_PARTITION_NAME) )
+			return ref ;
+		if ( !ref.hasReferenceElement() )
+			return ref ;
+		Type extValue = ref.getExtensionByUrl(EXTENSION_URL_SDS_PARTITION_NAME).getValue() ;
+		if ( !(extValue instanceof StringType) )
+			return ref ;
+		IIdType id = new IdType( ((StringType)extValue).getValue(), ref.getReferenceElement().getResourceType(), ref.getReferenceElement().getIdPart(), ref.getReferenceElement().getVersionIdPart() ) ;
+		return new Reference( id ) ;
+	}
+
+	private static Reference referenceForLinkage( IIdType id ) {
+		if ( id.hasBaseUrl() ) {
+			Reference ref = new Reference( id.toUnqualifiedVersionless() ) ;
+			ref.addExtension(EXTENSION_URL_SDS_PARTITION_NAME, new StringType( id.getBaseUrl() ) );
+			return ref ;
+		} else {
+			return new Reference(id) ;
+		}
+	}
+
 	@Override
 	protected void createLinkage( IIdType sourcePatientId, IIdType alternatePatientId, RequestDetails theRequestDetails ) {
 		Linkage linkage = new Linkage();
-		linkage.addItem().setType(LinkageType.SOURCE).setResource(new Reference(sourcePatientId));
-		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(new Reference(alternatePatientId));
-		daoLinkageDstu3.create(linkage, theRequestDetails);
+		linkage.addItem().setType(LinkageType.SOURCE).setResource(referenceForLinkage(sourcePatientId));
+		linkage.addItem().setType(LinkageType.ALTERNATE).setResource(referenceForLinkage(alternatePatientId));
+		DaoMethodOutcome outcome = daoLinkageDstu3.create(linkage, theRequestDetails);
+		if ( Boolean.TRUE != outcome.getCreated() ) {
+			throw new RuntimeException( "failed to create linkage between " + sourcePatientId + " and " + alternatePatientId ) ;
+		}
 	}
 
 	@Override
@@ -104,6 +135,7 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 				.flatMap(k -> k.getItem().stream())
 				.filter(i -> i.getType() == LinkageType.ALTERNATE)
 				.map(i -> i.getResource())
+				.map( SupplementalDataStoreLinkageDstu3::referenceFromLinkage )
 				.collect(java.util.stream.Collectors.toList());
 		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
@@ -117,6 +149,7 @@ public class SupplementalDataStoreLinkageDstu3 extends SupplementalDataStoreLink
 				.flatMap(k -> k.getItem().stream())
 				.filter(i -> i.getType() == LinkageType.SOURCE)
 				.map(i -> i.getResource())
+				.map( SupplementalDataStoreLinkageDstu3::referenceFromLinkage )
 				.collect(java.util.stream.Collectors.toList());
 		return FhirResourceComparison.references().createSet( sourceRefs ) ;
 	}
