@@ -16,6 +16,7 @@ import ca.uhn.fhir.rest.server.interceptor.auth.AuthorizationInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
 import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRuleBuilder;
 import ca.uhn.fhir.rest.server.interceptor.auth.RuleBuilder;
+import ca.uhn.fhir.rest.server.provider.ProviderConstants;
 
 @Interceptor
 @Component
@@ -187,18 +188,48 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 		 * so, build them using separate RuleBuilder instances
 		 */
 		ruleBuilder()
-			.allow( describePatientPermission("cascade-delete", isLocal, patientId) )
+			.allow( describePatientPermission("delete-with-cascade", isLocal, patientId) )
 			.delete().onCascade().allResources().inCompartment("Patient", patientId)
 			.build()
 			.forEach( rules::add )
 			;
 		ruleBuilder()
-			.allow( describePatientPermission("expunge-delete", isLocal, patientId) )
+			.allow( describePatientPermission("delete-with-expunge", isLocal, patientId) )
 			.delete().onExpunge().allResources().inCompartment("Patient", patientId)
 			.build()
 			.forEach( rules::add )
 			;
-		
+		/*
+		 * $expunge SHOULD require parameter that specifies targeting "deleted" resource only
+		 */
+		ruleBuilder()
+			.allow( describePatientPermission("operation $expunge", isLocal, patientId) )
+			.operation().named( ProviderConstants.OPERATION_EXPUNGE ).onInstance( patientId ).andAllowAllResponsesWithAllResourcesAccess()
+			.build()
+			.forEach( rules::add )
+			;
+		/*
+		 * $expunge SHOULD check permission for specific patients identified in the operation parameters
+		 * and SHOULD require parameter that specifies targeting "deleted" resource only
+		 */
+		ruleBuilder()
+			.allow( describePatientPermission("operation $expunge", isLocal, patientId) )
+			.operation().named( ProviderConstants.OPERATION_EXPUNGE ).onServer().andAllowAllResponsesWithAllResourcesAccess()
+			.build()
+			.forEach( rules::add )
+			;
+		/*
+		 * $delete-expunge requires permission for specific patients identified in the operation parameters
+		 *
+		ruleBuilder()
+			.allow( describePatientPermission("operation $delete-expunge", isLocal, patientId) )
+			.operation().named( ProviderConstants.OPERATION_DELETE_EXPUNGE ).onServer().andAllowAllResponsesWithAllResourcesAccess()
+			.parameter( "url" ).identifiesResource( patientId )
+			.build()
+			.forEach( rules::add )
+			;
+		*/
+
 		return rules ;
 	}
 
