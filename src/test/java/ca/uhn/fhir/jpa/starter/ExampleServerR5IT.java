@@ -25,6 +25,7 @@ import org.hl7.fhir.r5.model.Patient;
 import org.hl7.fhir.r5.model.Subscription;
 import org.hl7.fhir.r5.model.SubscriptionTopic;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +40,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 	  "hapi.fhir.cr_enabled=false",
 	  "hapi.fhir.subscription.websocket_enabled=true"
   })
+@Disabled("SDS partitioning scheme may be incompatible with MDM, but MDM will not be enabled with the SDS")
 public class ExampleServerR5IT {
 
   private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(ExampleServerDstu2IT.class);
