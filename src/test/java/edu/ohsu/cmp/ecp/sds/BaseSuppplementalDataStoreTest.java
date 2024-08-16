@@ -52,6 +52,9 @@ public abstract class BaseSuppplementalDataStoreTest {
 	private int port;
 
 	@Autowired
+	private SupplementalDataStoreProperties sdsProperties ;
+
+	@Autowired
 	private StorageSettings myStorageSettings;
 
 	private String ourServerBase;
@@ -101,7 +104,7 @@ public abstract class BaseSuppplementalDataStoreTest {
 	
 	protected IGenericClient clientTargetingPartition( String partitionName ) {
 		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( partitionName ) );
+		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( sdsProperties.getPartition().getHttpHeader(), partitionName ) );
 		return client ;
 
 	}
@@ -114,7 +117,7 @@ public abstract class BaseSuppplementalDataStoreTest {
 
 	protected IGenericClient authenticatingClientTargetingPartition( String token, String partitionName ) {
 		IGenericClient client = client() ;
-		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( partitionName ) );
+		client.registerInterceptor( new PartitionNameHeaderClientInterceptor( sdsProperties.getPartition().getHttpHeader(), partitionName ) );
 		client.registerInterceptor( new BearerTokenAuthInterceptor( token ) );
 		return client ;
 	}

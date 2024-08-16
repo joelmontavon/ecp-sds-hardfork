@@ -1,5 +1,7 @@
 package edu.ohsu.cmp.ecp.sds.r4;
 
+import static java.util.stream.Collectors.toList;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +33,6 @@ import ca.uhn.fhir.jpa.api.model.DaoMethodOutcome;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.jpa.starter.annotations.OnR4Condition;
 import ca.uhn.fhir.model.api.IQueryParameterType;
-import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import edu.ohsu.cmp.ecp.sds.SupplementalDataStoreProperties;
@@ -70,7 +71,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 			return id.getIdPart().equals( i.getIdPart() ) ;
 		};
 	}
-	
+
 	private static Predicate<Linkage.LinkageItemComponent> refersTo( IQueryParameterType param ) {
 		if ( param instanceof ReferenceParam ) {
 			ReferenceParam refParam = (ReferenceParam)param ;
@@ -79,7 +80,7 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 			return (i) -> false ;
 		}
 	}
-	
+
 	private static Predicate<Linkage.LinkageItemComponent> refersTo( IIdType ref ) {
 		Predicate<IIdType> p = sameId( ref ) ;
 		return i -> i.hasResource() && i.getResource().hasReference() && p.test( referenceFromLinkage( i.getResource() ).getReferenceElement() );
@@ -93,13 +94,12 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 			return (i) -> false ;
 		}
 	}
-	
 
 	private static Predicate<Linkage.LinkageItemComponent> sourceRefersTo( IIdType ref ) {
 		Predicate<Linkage.LinkageItemComponent> p1 = refersTo( ref ) ;
 		return i -> i.getType() == Linkage.LinkageType.SOURCE && p1.test(i) ;
 	}
-	
+
 	private Predicate<IBaseResource> linkageItemFilter( List<List<IQueryParameterType>> parameterValue ) {
 		if ( null == parameterValue )
 			return r -> true ;
@@ -107,11 +107,11 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 			if ( !(r instanceof Linkage ) )
 				return false ;
 			Linkage linkage = (Linkage)r ;
-			
+
 			return parameterValue.stream().allMatch( v1 -> v1.stream().anyMatch( v -> linkage.getItem().stream().anyMatch( refersTo( v ) ) ) ) ;
 		} ;
 	}
-	
+
 	private Predicate<IBaseResource> linkageSourceFilter( List<List<IQueryParameterType>> parameterValue ) {
 		if ( null == parameterValue )
 			return r -> true ;
@@ -119,28 +119,53 @@ public class SupplementalDataStoreLinkageR4 extends SupplementalDataStoreLinkage
 				if ( !(r instanceof Linkage ) )
 					return false ;
 				Linkage linkage = (Linkage)r ;
-				
+
 				return parameterValue.stream().allMatch( v1 -> v1.stream().anyMatch( v -> linkage.getItem().stream().anyMatch( sourceRefersTo( v ) ) ) ) ;
 			} ;
 	}
-	
+
+	private IQueryParameterType convertQueryParameter( IQueryParameterType parameter ) {
+		if ( parameter instanceof ReferenceParam ) {
+			ReferenceParam refParam = (ReferenceParam)parameter ;
+			IdType id = new IdType( refParam.getValue() ).toUnqualifiedVersionless() ;
+			return new ReferenceParam( id ) ;
+		} else {
+			return parameter ;
+		}
+	}
+
+	private List<IQueryParameterType> convertQueryParameters( List<IQueryParameterType> parameters ) {
+		return parameters.stream().map( this::convertQueryParameter ).collect( toList() ) ;
+	}
+
+	private List<List<IQueryParameterType>> convertQueryParametersList( List<List<IQueryParameterType>> parameters ) {
+		return parameters.stream().map( this::convertQueryParameters ).collect( toList() ) ;
+	}
+
 	@Override
 	protected List<IBaseResource> searchLinkageResources( SearchParameterMap linkageSearchParamMap, RequestDetails theRequestDetails ) {
 		/*
-		 * server is failing to find existing LINKAGE resources while searching on ITEM
-		 * 
-		return daoLinkageR4.search(linkageSearchParamMap, theRequestDetails).getAllResources();
+		 * server is returning LINKAGE resources while searching on SOURCE that match the id but are not SOURCE
 		 */
+		/*
+		 * item and source parameters must be relative (i.e. no baseUrl) in order to find these LINKAGE resources
+		 */
+
 		SearchParameterMap replacementSearchParameterMap = linkageSearchParamMap.clone() ;
-		Predicate<IBaseResource> itemFilter = linkageItemFilter( replacementSearchParameterMap.remove("item") ) ;
-		Predicate<IBaseResource> sourceFilter = linkageSourceFilter( replacementSearchParameterMap.remove("source") ) ;
+		List<List<IQueryParameterType>> itemQueryParameter = replacementSearchParameterMap.remove("item");
+		List<List<IQueryParameterType>> sourceQueryParameter = replacementSearchParameterMap.remove("source");
+		if ( null != itemQueryParameter ) {
+			replacementSearchParameterMap.put( "item", convertQueryParametersList( itemQueryParameter ) );
+		}
+		if ( null != sourceQueryParameter ) {
+			replacementSearchParameterMap.put( "source", convertQueryParametersList( sourceQueryParameter ) );
+		}
 		return daoLinkageR4.search(replacementSearchParameterMap, theRequestDetails).getAllResources()
 				.stream()
-				.filter( itemFilter )
-				.filter( sourceFilter )
+				.filter( linkageItemFilter( itemQueryParameter ) )
+				.filter( linkageSourceFilter( sourceQueryParameter ) )
 				.collect( java.util.stream.Collectors.toList() )
 				;
-		
 	}
 
 	@Override

@@ -2,6 +2,7 @@ sds:
   require-base-url: false
   partition:
     local-name: SDS-LOCAL
+    http-header: X-Partition-Name
     multiple-linked-local-patients: WARN
 spring:
   main:

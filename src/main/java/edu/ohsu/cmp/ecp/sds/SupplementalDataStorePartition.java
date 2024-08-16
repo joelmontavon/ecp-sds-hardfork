@@ -23,8 +23,6 @@ import ca.uhn.fhir.rest.api.server.RequestDetails;
 @Component
 public class SupplementalDataStorePartition {
 
-	public static final String HEADER_PARTITION_NAME = "X-Partition-Name";
-
 	@Inject
 	SupplementalDataStoreProperties sdsProperties;
 
@@ -80,7 +78,8 @@ public class SupplementalDataStorePartition {
 	}
 
 	protected String partitionNameFromRequest(RequestDetails theRequestDetails) {
-		final String partitionNameHeaderValue = theRequestDetails.getHeader(HEADER_PARTITION_NAME);
+		final String httpHeader = sdsProperties.getPartition().getHttpHeader();
+		final String partitionNameHeaderValue = theRequestDetails.getHeader( httpHeader );
 		if (StringUtils.isNotBlank(partitionNameHeaderValue)) {
 			/*
 			 * later we want to recreate the partition name
