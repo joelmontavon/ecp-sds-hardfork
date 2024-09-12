@@ -202,24 +202,40 @@ public class SupplementalDataStoreAuthorizationInterceptor extends Authorization
 		/*
 		 * $expunge SHOULD require parameter that specifies targeting "deleted" resource only
 		 */
+		/*
+		 * Necause this should be available to clients even AFTER they've soft-deleted the
+		 * Patient resources that grant them permission, using `.onInstance( patientId )` is too narrow
+		 *
+		 * Using `.onAnyInstance()` opens the possibility that ANY client may expunge ANY
+		 * previously deleted resources.  The implication is that the SDS cannot support
+		 * reliable un-delete
+		 */
 		ruleBuilder()
 			.allow( describePatientPermission("operation $expunge", isLocal, patientId) )
-			.operation().named( ProviderConstants.OPERATION_EXPUNGE ).onInstance( patientId ).andAllowAllResponsesWithAllResourcesAccess()
+			.operation().named( ProviderConstants.OPERATION_EXPUNGE ).onAnyInstance().andAllowAllResponsesWithAllResourcesAccess()
 			.build()
 			.forEach( rules::add )
 			;
+
 		/*
 		 * $expunge SHOULD check permission for specific patients identified in the operation parameters
 		 * and SHOULD require parameter that specifies targeting "deleted" resource only
 		 */
+		/*
+		 * server-level $expunge permits DROP ALL
+		 * this cannot be configured as below; it requires a custom IAuthRule
+		 *
 		ruleBuilder()
 			.allow( describePatientPermission("operation $expunge", isLocal, patientId) )
 			.operation().named( ProviderConstants.OPERATION_EXPUNGE ).onServer().andAllowAllResponsesWithAllResourcesAccess()
 			.build()
 			.forEach( rules::add )
 			;
+		*/
+
 		/*
 		 * $delete-expunge requires permission for specific patients identified in the operation parameters
+		 * this cannot be configured as below; it requires a custom IAuthRule
 		 *
 		ruleBuilder()
 			.allow( describePatientPermission("operation $delete-expunge", isLocal, patientId) )

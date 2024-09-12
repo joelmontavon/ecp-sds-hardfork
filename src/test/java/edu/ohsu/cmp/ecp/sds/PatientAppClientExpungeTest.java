@@ -10,17 +10,14 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import org.hl7.fhir.instance.model.api.IBaseParameters;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.IdType;
-import org.hl7.fhir.r4.model.Linkage;
 import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
 import org.hl7.fhir.r4.model.Reference;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -30,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import ca.uhn.fhir.jpa.starter.AppTestMockPermissionRegistry;
 import ca.uhn.fhir.jpa.starter.AppTestMockPrincipalRegistry;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.server.exceptions.ForbiddenOperationException;
 import edu.ohsu.cmp.ecp.sds.assertions.PartitionAssertions;
 import edu.ohsu.cmp.ecp.sds.assertions.SdsAssertions;
 import edu.ohsu.cmp.ecp.sds.util.SdsPartitionOperations;
@@ -152,6 +150,55 @@ public class PatientAppClientExpungeTest extends BaseSuppplementalDataStoreTest 
 		foreignPartition1.assertUnclaimed() ; // as if it were never there
 		foreignPartition1.linkages().assertAbsent();
 	}
+
+	@Test
+	void cannotExpungeEverything() {
+
+		assertThrows( ForbiddenOperationException.class, () -> {
+			sdsAssertions.system().operations().expungeEverythingOperation() ;
+		});
+
+	}
+
+	@Test
+	void cannotExpungeAtTheSystemLevel() {
+
+		assertThrows( ForbiddenOperationException.class, () -> {
+			sdsAssertions.system().operations().expungeOperation() ;
+		});
+
+	}
+	
+	@Test
+	void canCreateLocalAndForeignResourcesAndHardDeleteThemThenCreateMoreResources() {
+		IIdType localPatientId = localPartition.operations().patient().create() ;
+		localPartition.assertClaimed() ;
+		localPartition.operations().resources( Condition.class ).create( configureCondition() ) ;
+		localPartition.operations().resources( Observation.class ).create( configureObservation() ) ;
+
+		foreignPartition1.operations().patient().create() ;
+		foreignPartition1.assertClaimed() ;
+		foreignPartition1.operations().resources( Condition.class ).create( configureCondition() ) ;
+		foreignPartition1.operations().resources( Observation.class ).create( configureObservation() ) ;
+
+		foreignPartition1.linkages().assertPresentAndLinkedTo( localPatientId );
+		localPartition.linkages().assertPresentAndLinkedTo( authorizedPatientId );
+
+		localPartition.operations().patient().deleteCascade() ;
+		foreignPartition1.operations().patient().deleteCascade() ;
+
+		localPartition.operations().patient().expungeOperation() ;
+		foreignPartition1.operations().patient().expungeOperation() ;
+
+		assertThrows( ForbiddenOperationException.class, () -> {
+			localPartition.waitForPatientToBecomeAbsent( Duration.ofSeconds(30), Duration.ofSeconds(600) ) ;
+		});
+		foreignPartition1.waitForPatientToBecomeAbsent( Duration.ofSeconds(30), Duration.ofSeconds(600) ) ;
+
+		IIdType localPatientIdAfterExpunge = localPartition.operations().patient().create() ;
+		foreignPartition1.linkages().assertPresentAndLinkedTo( localPatientIdAfterExpunge );
+	}
+
 
 	@Test
 	@Disabled("$delete-expunge authorization not yet implemented")

@@ -187,7 +187,7 @@ public class SdsPartitionOperations {
 		}
 		
 		public IBaseParameters expungeOperation( IIdType resourceId ) {
-			return SdsPartitionOperations.this.deleteExpungeOperation( resourceId ) ;
+			return SdsPartitionOperations.this.expungeOperation( resourceId ) ;
 		}
 
 		public IBaseParameters deleteExpungeOperation( IIdType resourceId ) {
