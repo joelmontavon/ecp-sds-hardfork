@@ -294,7 +294,7 @@ public class SupplementalDataStoreLinkingInterceptor {
 		PatientCompartmentLinkingContext nonLocalCompartmentIsAlreadyLinked( IIdType nonLocalPatientCompartment ) {
 			if ( !nonLocalCompartments.contains( nonLocalPatientCompartment ) )
 				new IllegalArgumentException( "cannot identify non-local compartment \"" + nonLocalPatientCompartment + "\" as already linked because the local compartment has not been identified yet" ) ;
-			this.linkedNonLocalCompartments.add( basisCompartment ) ;
+			this.linkedNonLocalCompartments.add( nonLocalPatientCompartment ) ;
 			return this ;
 		}
 	}
