@@ -19,10 +19,12 @@ import org.mockserver.model.HttpResponse;
 import org.mockserver.model.RequestDefinition;
 import org.mockserver.springtest.MockServerPort;
 import org.mockserver.springtest.MockServerTest;
+import org.opentest4j.AssertionFailedError;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 
 @MockServerTest
 @ActiveProfiles( { "auth-aware-test", "http-aware-test" } )
@@ -32,7 +34,7 @@ import ca.uhn.fhir.rest.client.api.IGenericClient;
 public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 
 	private static final String MOCK_SERVER_BASE_URL = "https://my.ehr.org/FHIR/R4" ;
-	
+
 	private MockServerClient mockServerClient ;
 
 	@MockServerPort
@@ -77,11 +79,11 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 		QuestionnaireResponse questRespAardvark = patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespAardvarkId).execute();
 		Assertions.assertNotNull( questRespAardvark );
 
-		assertThrows( Exception.class, () -> {
+		assertThrows( ResourceNotFoundException.class, () -> {
 			patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespBasiliskId).execute();
 		}) ;
 
-		assertThrows( Exception.class, () -> {
+		assertThrows( ResourceNotFoundException.class, () -> {
 			patientAppClient.read().resource(QuestionnaireResponse.class).withId(questRespCrocodileId).execute();
 		}) ;
 	}
@@ -99,7 +101,7 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 		Expectation[] oauth2Expectations =
 			mockServerClient
 				.when( oauth2IntrospectRequest(token) )
-				.respond( oauth2IntrospectResponse("Practitioner", authorizedPractitionerId) )
+				.respond( oauth2IntrospectResponse( new IdType( fhirServerlBase(), "Practitioner", authorizedPractitionerId, null) ) )
 				;
 
 		mockServerClient
@@ -115,6 +117,45 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 		Assertions.assertNotNull( questRespAardvark );
 		Assertions.assertNotNull( questRespBasilisk );
 		Assertions.assertNotNull( questRespCrocodile );
+
+		mockServerClient.verify( oauth2Expectations[0].getId(), exactly(3) ) ;
+	}
+
+	@Test
+	void cannotReadMultipleDistinctPatientsWithPractitionerAuthorizationInPatientContext() {
+
+		String aardvarkPatientId = createTestSpecificId();
+		String basiliskPatientId = createTestSpecificId();
+		String crocodilePatientId = createTestSpecificId();
+		IIdType questRespAardvarkId = storeNewQuestionnaireResponseForPatient( aardvarkPatientId ) ;
+		IIdType questRespBasiliskId = storeNewQuestionnaireResponseForPatient( basiliskPatientId ) ;
+		IIdType questRespCrocodileId = storeNewQuestionnaireResponseForPatient( crocodilePatientId ) ;
+
+		String token = createTestSpecificId() ;
+		String authorizedPractitionerId = createTestSpecificId() ;
+
+		Expectation[] oauth2Expectations =
+			mockServerClient
+				.when( oauth2IntrospectRequest(token) )
+				.respond( oauth2IntrospectResponse( new IdType(fhirServerlBase(), "Practitioner", authorizedPractitionerId, null), new IdType(fhirServerlBase(), "Patient", aardvarkPatientId, null) ) )
+				;
+
+		mockServerClient
+			.when( metadataRequest() )
+			.respond( metadataResponse() )
+			;
+
+		IGenericClient practitionerAppClient = authenticatingClient( token ) ;
+
+		QuestionnaireResponse questRespAardvark = practitionerAppClient.read().resource(QuestionnaireResponse.class).withId(questRespAardvarkId).execute();
+		Assertions.assertNotNull( questRespAardvark );
+
+		assertThrows( ResourceNotFoundException.class, () -> {
+			practitionerAppClient.read().resource(QuestionnaireResponse.class).withId(questRespBasiliskId).execute();
+		});
+		assertThrows( ResourceNotFoundException.class, () -> {
+			practitionerAppClient.read().resource(QuestionnaireResponse.class).withId(questRespCrocodileId).execute();
+		});
 
 		mockServerClient.verify( oauth2Expectations[0].getId(), exactly(3) ) ;
 	}
@@ -137,7 +178,7 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 	private HttpResponse oauth2IntrospectResponse( IIdType user ) {
 		String jsonBody =
 			String.format(
-				"{ \"active\": true, \"sub\": \"%1$s\", \"exp\": %2$d }",
+				"{ \"active\": true, \"sub\": \"%1$s\", \"exp\": %2$d }", // NOTE: no key for "patient" context
 				user.toString(),
 				System.currentTimeMillis() + 60000
 				);
@@ -145,6 +186,23 @@ public class PractitionerAppClientTest extends BaseSuppplementalDataStoreTest {
 			.withStatusCode( 200 )
 			.withBody( json( jsonBody ) )
 			;
+
+	}
+
+	private HttpResponse oauth2IntrospectResponse( IIdType practitioner, IIdType patientContext ) {
+		if ( !"Practitioner".equals( practitioner.getResourceType() ) )
+			throw new AssertionFailedError("oauth2IntrospectResponse(...) included a patientContext, so expected a user of type \"Practitioner\" but encountered \"" + practitioner.getResourceType() + "\"" ) ;
+		String jsonBody =
+			String.format(
+				"{ \"active\": true, \"sub\": \"%1$s\", \"exp\": %2$d, \"patient\": \"%3$s\" }",
+				practitioner.toString(),
+				System.currentTimeMillis() + 60000,
+				patientContext.toString()
+				);
+		return response()
+				.withStatusCode( 200 )
+				.withBody( json( jsonBody ) )
+				;
 
 	}
 

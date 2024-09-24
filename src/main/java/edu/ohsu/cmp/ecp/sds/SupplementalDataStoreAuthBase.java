@@ -27,7 +27,7 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 		String authorizedResourceType = authorizedUserId.getResourceType();
 		
 		if ( "Practitioner".equalsIgnoreCase(authorizedResourceType) )
-			return SupplementalDataStoreAuthProfile.forPractitioner( authorizedUserId ) ;
+			return SupplementalDataStoreAuthProfile.forPractitioner( authorizedUserId, launchContextFromAuthentication(authentication) ) ;
 
 		if ( "Patient".equalsIgnoreCase(authorizedResourceType) )
 			return SupplementalDataStoreAuthProfile.forPatient( authorizedUserId ) ;
@@ -40,8 +40,7 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 		throw new AuthenticationException(Msg.code(644) + "Principal \"" + authorizedUserId + "\" Not Authorized For Any Patient");
 
 	}
-	
-	private IIdType authorizedUserIdFromAuthentication(Authentication authentication) {
+	private OAuth2AuthenticatedPrincipal oauth2PrincipalFromAuthentication(Authentication authentication) {
 		if (null == authentication)
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Authorization");
 
@@ -53,12 +52,41 @@ public abstract class SupplementalDataStoreAuthBase implements SupplementalDataS
 			return null;
 
 		OAuth2AuthenticatedPrincipal oauth2Principal = (OAuth2AuthenticatedPrincipal) authentication.getPrincipal();
+		return oauth2Principal ;
+	}
+
+	private IIdType authorizedUserIdFromAuthentication(Authentication authentication) {
+		OAuth2AuthenticatedPrincipal oauth2Principal = oauth2PrincipalFromAuthentication(authentication);
+		if ( null == oauth2Principal )
+			return null ;
+
 		Object subject = oauth2Principal.getAttribute("sub");
 		if (null == subject)
 			throw new AuthenticationException(Msg.code(644) + "Missing or Invalid Subject");
 
 		return idFromSubject(subject.toString());
 	}
-	
+
+	private LaunchContext launchContextFromAuthentication(Authentication authentication) {
+		OAuth2AuthenticatedPrincipal oauth2Principal = oauth2PrincipalFromAuthentication(authentication);
+		if ( null == oauth2Principal )
+			return null ;
+
+		Object contextPatient = oauth2Principal.getAttribute("patient");
+		if (null == contextPatient)
+			return null;
+
+		IIdType contextPatientId = idFromSubject(contextPatient.toString());
+
+		return new LaunchContext() {
+
+			@Override
+			public IIdType getPatient() {
+				return contextPatientId;
+			}
+
+		};
+	}
+
 	protected abstract IIdType idFromSubject( String subject ) ;
 }
